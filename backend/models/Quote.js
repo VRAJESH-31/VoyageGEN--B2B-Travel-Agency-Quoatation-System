@@ -1,0 +1,60 @@
+const mongoose = require('mongoose');
+
+const quoteSchema = new mongoose.Schema({
+    requirementId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Requirement',
+        required: true,
+    },
+    partnerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    agentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    title: String,
+    sections: {
+        hotels: [{
+            name: String,
+            city: String,
+            roomType: String,
+            nights: Number,
+            unitPrice: Number,
+            qty: Number,
+            total: Number,
+        }],
+        transport: [{
+            type: String, // e.g., Sedan
+            days: Number,
+            unitPrice: Number,
+            total: Number,
+        }],
+        activities: [{
+            name: String,
+            unitPrice: Number,
+            qty: Number,
+            total: Number,
+        }],
+    },
+    costs: {
+        net: Number,
+        margin: Number, // Percentage or fixed amount
+        final: Number,
+        perHead: Number,
+    },
+    status: {
+        type: String,
+        enum: ['DRAFT', 'READY', 'SENT_TO_USER'],
+        default: 'DRAFT',
+    },
+}, {
+    timestamps: true,
+});
+
+const Quote = mongoose.model('Quote', quoteSchema);
+
+module.exports = Quote;
