@@ -1,6 +1,7 @@
 const Quote = require('../models/Quote');
 const Requirement = require('../models/Requirement');
 const PartnerProfile = require('../models/PartnerProfile');
+const axios = require('axios');
 
 // @desc    Auto-generate quotes for selected partners
 // @route   POST /api/quotes/generate
@@ -80,6 +81,40 @@ const generateQuotes = async (req, res) => {
                 });
             }
 
+            // 4. Call AI Service for Itinerary
+            let aiItineraryData = null;
+            try {
+                const aiResponse = await axios.post('http://localhost:8000/generate', {
+                    destination: requirement.destination,
+                    budget: requirement.budget,
+                    days: duration,
+                    start_date: requirement.startDate ? new Date(requirement.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                });
+
+                if (aiResponse.data) {
+                    const aiData = aiResponse.data;
+                    aiItineraryData = {
+                        generatedAt: new Date(),
+                        summary: aiData.ai_reply || "AI Generated Itinerary",
+                        days: []
+                    };
+
+                    if (aiData.DayWiseItinerary) {
+                        for (const [dayKey, dayVal] of Object.entries(aiData.DayWiseItinerary)) {
+                            aiItineraryData.days.push({
+                                day: dayVal.day,
+                                weather: dayVal.weather_details ? `${dayVal.weather_details.temperature}°C, ${dayVal.weather_details.conditions}` : 'N/A',
+                                activities: dayVal.activities || [],
+                                cost: dayVal.approximate_cost || 0
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('AI Service Error:', error.message);
+                // Fail-safe: Continue without AI itinerary
+            }
+
             // Create Quote Record
             const quote = await Quote.create({
                 requirementId,
@@ -94,6 +129,7 @@ const generateQuotes = async (req, res) => {
                     perHead: (netCost * 1.1) / adults,
                 },
                 status: 'DRAFT',
+                aiItinerary: aiItineraryData,
             });
 
             quotes.push(quote);
