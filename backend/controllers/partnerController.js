@@ -1,5 +1,6 @@
 const PartnerProfile = require('../models/PartnerProfile');
 const { PartnerHotel, PartnerTransport, PartnerActivity } = require('../models/PartnerInventory');
+const axios = require('axios');
 
 // @desc    Get current partner profile
 // @route   GET /api/partners/me
@@ -84,19 +85,17 @@ const filterPartners = async (req, res) => {
             query.specializations = { $regex: tripType, $options: 'i' };
         }
 
-        // Filter by budget range - partner's range should overlap with requirement budget
+        // Filter by budget range - partner's starting price should be within user's budget
         if (budget) {
             const budgetNum = Number(budget);
             query.$or = [
-                {
-                    'budgetRange.min': { $lte: budgetNum },
-                    'budgetRange.max': { $gte: budgetNum }
-                },
+                { 'budgetRange.min': { $lte: budgetNum } },
                 { budgetRange: { $exists: false } },
-                { 'budgetRange.min': null },
-                { 'budgetRange.max': null }
+                { 'budgetRange.min': null }
             ];
         }
+
+        console.log('Filter Query:', JSON.stringify(query, null, 2));
 
         // Filter by rating (exact match for hotel star rating)
         if (hotelStar) {
@@ -122,9 +121,43 @@ const filterPartners = async (req, res) => {
     }
 };
 
+// @desc    Search Live Market Data via AI
+// @route   POST /api/partners/live-search
+// @access  Private (Agent)
+const searchLivePartners = async (req, res) => {
+    const { destination, budget, days } = req.body;
+
+    try {
+        const response = await axios.post('http://localhost:8000/research', {
+            destination,
+            budget,
+            days: days || 5
+        }, {
+            timeout: 90000 // Wait up to 90 seconds
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        // Detailed error logging
+        if (error.response) {
+            // The Python server responded with a status code other than 2xx
+            console.error('Python Error Data:', error.response.data);
+            console.error('Python Status:', error.response.status);
+        } else if (error.request) {
+            // The request was made but no response was received
+            console.error('No response from Python service. Is it running?');
+        } else {
+            console.error('Error:', error.message);
+        }
+        
+        res.status(500).json({ message: 'Failed to fetch live data' });
+    }
+};
+
 module.exports = {
     getMyProfile,
     updateProfile,
     addInventory,
     filterPartners,
+    searchLivePartners,
 };
