@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+agno
+google-genai
+pydantic
+python-dotenv
+duckduckgo-search==6.4.2
