@@ -7,7 +7,7 @@ const axios = require('axios');
 // @route   POST /api/quotes/generate
 // @access  Private (Agent)
 const generateQuotes = async (req, res) => {
-    const { requirementId, partnerIds } = req.body;
+    const { requirementId, partnerIds, customItems } = req.body;
 
     try {
         const requirement = await Requirement.findById(requirementId);
@@ -78,6 +78,34 @@ const generateQuotes = async (req, res) => {
                         total: activityCost,
                     });
                     netCost += activityCost;
+                });
+            }
+
+            // 3.5 Add Custom AI Items (Live Market)
+            if (customItems && customItems.length > 0) {
+                customItems.forEach(item => {
+                    if (item.type === 'Hotel') {
+                        quoteSections.hotels.push({
+                            name: item.name,
+                            city: item.location || requirement.destination,
+                            roomType: 'Standard Room',
+                            nights: duration - 1,
+                            unitPrice: item.price,
+                            qty: 1,
+                            total: item.price * (duration - 1),
+                            source: 'AI'
+                        });
+                        netCost += item.price * (duration - 1);
+                    } else if (item.type === 'Transport') {
+                        quoteSections.transport.push({
+                            type: item.name,
+                            days: duration,
+                            unitPrice: item.price,
+                            total: item.price * duration,
+                            source: 'AI'
+                        });
+                        netCost += item.price * duration;
+                    }
                 });
             }
 

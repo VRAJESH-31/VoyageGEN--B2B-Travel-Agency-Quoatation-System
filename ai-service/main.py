@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.team import Team
-from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.serper import SerperTools
 import os
 import json
 
@@ -20,6 +20,11 @@ class GenerateRequest(BaseModel):
     budget: float
     days: int
     start_date: str
+
+class ResearchRequest(BaseModel):
+    destination: str
+    budget: float
+    days: int
 
 class WeatherSchema(BaseModel):
     temperature: float
@@ -40,7 +45,26 @@ class PredictionSchema(BaseModel):
     estimated_cost: float
     hotel_details: Optional[Dict[str, Any]]
 
+class HotelOption(BaseModel):
+    name: str
+    price_per_night: float
+    rating: str
+    location: str
+    amenities: List[str]
+
+class TransportOption(BaseModel):
+    type: str
+    price_per_day: float
+    capacity: str
+    description: str
+
+class MarketResearchResponse(BaseModel):
+    hotels: List[HotelOption]
+    transport: List[TransportOption]
+    summary: str
+
 # --- Agents ---
+search_tool = SerperTools(api_key=os.getenv("SERPER_API_KEY"))
 
 weather_agent = Agent(
     id='weather_agent',
@@ -50,7 +74,7 @@ weather_agent = Agent(
         "Provide current weather details for the user's chosen destination on each date mentioned.",
         "Include temperature, conditions, and any relevant forecasts.",
     ],
-    tools=[DuckDuckGoTools()],
+    tools=[search_tool],
     markdown=True,
 )
 
@@ -70,7 +94,36 @@ prediction_agent = Agent(
     markdown=True,
 )
 
-team = Team(
+hotel_search_agent = Agent(
+    id='hotel_search_agent',
+    model=Gemini(id="gemini-2.5-flash"),
+    instructions=[
+        "You are a hotel market researcher.",
+        "Find 3 real, currently operating hotels in the specified destination.",
+        "For each hotel, find the approximate price per night for the current season.",
+        "Include rating, location, and key amenities.",
+        "Ensure the hotels fit within the user's overall budget context.",
+    ],
+    tools=[search_tool],
+    markdown=True,
+)
+
+transport_search_agent = Agent(
+    id='transport_search_agent',
+    model=Gemini(id="gemini-2.5-flash"),
+    instructions=[
+        "You are a local transport expert.",
+        "Find 2-3 common transport options for tourists in the destination (e.g., Private Cab, Luxury Sedan, Van).",
+        "Estimate the daily rental cost including driver.",
+        "Specify capacity and brief description.",
+    ],
+    tools=[search_tool],
+    markdown=True,
+)
+
+# --- Teams ---
+
+itinerary_team = Team(
     name='Travel Planning Team',
     members=[prediction_agent, weather_agent],
     model=Gemini(id="gemini-2.5-flash"),
@@ -81,6 +134,21 @@ team = Team(
         "Ensure the output matches the PredictionSchema structure.",
     ],
     output_schema=PredictionSchema,
+    use_json_mode=True,
+)
+
+research_team = Team(
+    name='Market Research Team',
+    members=[hotel_search_agent, transport_search_agent],
+    model=Gemini(id="gemini-2.5-flash"),
+    instructions=[
+        "You are a Market Research Lead.",
+        "Your goal is to find real-world options for Hotels and Transport in the destination.",
+        "Delegate to hotel_search_agent to find 3 hotels.",
+        "Delegate to transport_search_agent to find transport options.",
+        "Combine the findings into a structured MarketResearchResponse.",
+    ],
+    output_schema=MarketResearchResponse,
     use_json_mode=True,
 )
 
@@ -98,13 +166,9 @@ async def generate_itinerary(request: GenerateRequest):
         )
 
         # Run the team
-        response = team.run(prompt)
-        
-        # The response from team.run() with output_schema should be a RunResponse object
-        # We need to extract the content which should be the Pydantic model or dict
+        response = itinerary_team.run(prompt)
         
         if response and response.content:
-             # Depending on agno version, content might be the object or a string
              return response.content
         else:
              raise HTTPException(status_code=500, detail="Failed to generate itinerary")
@@ -112,6 +176,28 @@ async def generate_itinerary(request: GenerateRequest):
     except Exception as e:
         print(f"Error generating itinerary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/research")
+async def research_market(request: ResearchRequest):
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            prompt = (
+                f"Find real hotel and transport options for a trip to {request.destination}. "
+                f"The total trip budget is {request.budget} for {request.days} days. "
+                "Provide 3 specific hotel options and 2-3 transport types with current estimated prices."
+            )
+
+            response = research_team.run(prompt)
+
+            if response and response.content:
+                return response.content
+            else:
+                print(f"Attempt {attempt + 1} failed: No content in response")
+        except Exception as e:
+            print(f"Attempt {attempt + 1} error: {e}")
+            if attempt == max_retries - 1:
+                raise HTTPException(status_code=500, detail=f"Failed to research market after {max_retries} attempts: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -268,6 +268,20 @@ const QuotesList = () => {
                         font-weight: 700;
                         font-size: 16px;
                     }
+                    .ai-badge {
+                        background: linear-gradient(135deg, #a855f7, #ec4899);
+                        color: white;
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 10px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        margin-left: 8px;
+                        vertical-align: middle;
+                    }
+                    .ai-row td {
+                        background: rgba(168, 85, 247, 0.05);
+                    }
                     .cost-summary {
                         background: #18181b;
                         padding: 30px;
@@ -392,8 +406,11 @@ const QuotesList = () => {
                                     <th>Total</th>
                                 </tr>
                                 ${quote.sections.hotels.map(hotel => `
-                                <tr>
-                                    <td class="item-name">${hotel.name}</td>
+                                <tr class="${hotel.source === 'AI' ? 'ai-row' : ''}">
+                                    <td class="item-name">
+                                        ${hotel.name}
+                                        ${hotel.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
+                                    </td>
                                     <td>${hotel.city}</td>
                                     <td>${hotel.roomType}</td>
                                     <td>${hotel.nights}</td>
@@ -419,8 +436,11 @@ const QuotesList = () => {
                                     <th>Total</th>
                                 </tr>
                                 ${quote.sections.transport.map(transport => `
-                                <tr>
-                                    <td class="item-name">${transport.type}</td>
+                                <tr class="${transport.source === 'AI' ? 'ai-row' : ''}">
+                                    <td class="item-name">
+                                        ${transport.type}
+                                        ${transport.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
+                                    </td>
                                     <td>${transport.days}</td>
                                     <td class="price">₹${transport.unitPrice?.toLocaleString()}</td>
                                     <td class="price">₹${transport.total?.toLocaleString()}</td>
