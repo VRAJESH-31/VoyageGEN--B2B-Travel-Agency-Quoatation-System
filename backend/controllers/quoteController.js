@@ -14,152 +14,207 @@ const generateQuotes = async (req, res) => {
         if (!requirement) return res.status(404).json({ message: 'Requirement not found' });
 
         const quotes = [];
+        const duration = requirement.duration || 6;
+        const adults = requirement.adults || 2;
 
-        for (const partnerId of partnerIds) {
-            // Fetch partner profile instead of inventory
-            const partner = await PartnerProfile.findOne({ userId: partnerId }).populate('userId', 'name email');
-            if (!partner) continue;
+        // 1. Call AI Service for Itinerary (ONCE for all quotes)
+        let aiItineraryData = null;
+        try {
+            const aiResponse = await axios.post('http://localhost:8000/generate', {
+                destination: requirement.destination,
+                budget: requirement.budget,
+                days: duration,
+                start_date: requirement.startDate ? new Date(requirement.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+            });
 
-            // Build quote sections using partner data
+            if (aiResponse.data) {
+                const aiData = aiResponse.data;
+                aiItineraryData = {
+                    generatedAt: new Date(),
+                    summary: aiData.ai_reply || "AI Generated Itinerary",
+                    days: []
+                };
+
+                if (aiData.DayWiseItinerary) {
+                    for (const [dayKey, dayVal] of Object.entries(aiData.DayWiseItinerary)) {
+                        aiItineraryData.days.push({
+                            day: dayVal.day,
+                            weather: dayVal.weather_details ? `${dayVal.weather_details.temperature}°C, ${dayVal.weather_details.conditions}` : 'N/A',
+                            activities: dayVal.activities || [],
+                            cost: dayVal.approximate_cost || 0
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('AI Service Error:', error.message);
+            // Fail-safe: Continue without AI itinerary
+        }
+
+        // 2. Generate Quotes for Selected Partners
+        if (partnerIds && partnerIds.length > 0) {
+            for (const partnerId of partnerIds) {
+                // Fetch partner profile instead of inventory
+                const partner = await PartnerProfile.findOne({ userId: partnerId }).populate('userId', 'name email');
+                if (!partner) continue;
+
+                // Build quote sections using partner data
+                const quoteSections = {
+                    hotels: [],
+                    transport: [],
+                    activities: [],
+                };
+
+                let netCost = 0;
+
+                // Add Hotel based on partner's starting price
+                if (partner.type === 'Hotel' || partner.type === 'DMC' || partner.type === 'Mixed') {
+                    const hotelPrice = partner.startingPrice || 5000;
+                    const nights = duration - 1;
+                    const roomCost = hotelPrice * nights;
+
+                    quoteSections.hotels.push({
+                        name: partner.companyName,
+                        city: partner.destinations[0] || requirement.destination,
+                        roomType: 'Deluxe Room',
+                        nights: nights,
+                        unitPrice: hotelPrice,
+                        qty: 1,
+                        total: roomCost,
+                    });
+                    netCost += roomCost;
+                }
+
+                // Add Transport
+                if (partner.type === 'CabProvider' || partner.type === 'DMC' || partner.type === 'Mixed') {
+                    const transportPrice = 3000; // Default per day
+                    const days = duration;
+                    const transportCost = transportPrice * days;
+
+                    quoteSections.transport.push({
+                        type: 'Private Sedan',
+                        days: days,
+                        unitPrice: transportPrice,
+                        total: transportCost,
+                    });
+                    netCost += transportCost;
+                }
+
+                // Add Activities based on sightseeing
+                if (partner.sightSeeing && partner.sightSeeing.length > 0) {
+                    const activitiesToAdd = partner.sightSeeing.slice(0, 3);
+                    activitiesToAdd.forEach((sight, index) => {
+                        const activityPrice = 1500 + (index * 500); // Varying prices
+                        const activityCost = activityPrice * adults;
+
+                        quoteSections.activities.push({
+                            name: sight,
+                            unitPrice: activityPrice,
+                            qty: adults,
+                            total: activityCost,
+                        });
+                        netCost += activityCost;
+                    });
+                }
+
+                // Add Custom AI Items (Live Market)
+                if (customItems && customItems.length > 0) {
+                    customItems.forEach(item => {
+                        if (item.type === 'Hotel') {
+                            quoteSections.hotels.push({
+                                name: item.name,
+                                city: item.location || requirement.destination,
+                                roomType: 'Standard Room',
+                                nights: duration - 1,
+                                unitPrice: item.price,
+                                qty: 1,
+                                total: item.price * (duration - 1),
+                                source: 'AI'
+                            });
+                            netCost += item.price * (duration - 1);
+                        } else if (item.type === 'Transport') {
+                            quoteSections.transport.push({
+                                type: item.name,
+                                days: duration,
+                                unitPrice: item.price,
+                                total: item.price * duration,
+                                source: 'AI'
+                            });
+                            netCost += item.price * duration;
+                        }
+                    });
+                }
+
+                // Create Quote Record
+                const quote = await Quote.create({
+                    requirementId,
+                    partnerId: partner.userId._id,
+                    agentId: req.user._id,
+                    title: `${requirement.destination} Trip - ${requirement.tripType} (Partner)`,
+                    sections: quoteSections,
+                    costs: {
+                        net: netCost,
+                        margin: 10, // Default 10%
+                        final: netCost * 1.1,
+                        perHead: (netCost * 1.1) / adults,
+                    },
+                    status: 'DRAFT',
+                    aiItinerary: aiItineraryData,
+                });
+
+                quotes.push(quote);
+            }
+        }
+
+        // 3. Generate Standalone Quote for Custom Items (if no partners selected)
+        if ((!partnerIds || partnerIds.length === 0) && customItems && customItems.length > 0) {
             const quoteSections = {
                 hotels: [],
                 transport: [],
                 activities: [],
             };
-
             let netCost = 0;
-            const duration = requirement.duration || 6;
-            const adults = requirement.adults || 2;
 
-            // 1. Add Hotel based on partner's starting price
-            if (partner.type === 'Hotel' || partner.type === 'DMC' || partner.type === 'Mixed') {
-                const hotelPrice = partner.startingPrice || 5000;
-                const nights = duration - 1;
-                const roomCost = hotelPrice * nights;
-
-                quoteSections.hotels.push({
-                    name: partner.companyName,
-                    city: partner.destinations[0] || requirement.destination,
-                    roomType: 'Deluxe Room',
-                    nights: nights,
-                    unitPrice: hotelPrice,
-                    qty: 1,
-                    total: roomCost,
-                });
-                netCost += roomCost;
-            }
-
-            // 2. Add Transport
-            if (partner.type === 'CabProvider' || partner.type === 'DMC' || partner.type === 'Mixed') {
-                const transportPrice = 3000; // Default per day
-                const days = duration;
-                const transportCost = transportPrice * days;
-
-                quoteSections.transport.push({
-                    type: 'Private Sedan',
-                    days: days,
-                    unitPrice: transportPrice,
-                    total: transportCost,
-                });
-                netCost += transportCost;
-            }
-
-            // 3. Add Activities based on sightseeing
-            if (partner.sightSeeing && partner.sightSeeing.length > 0) {
-                const activitiesToAdd = partner.sightSeeing.slice(0, 3);
-                activitiesToAdd.forEach((sight, index) => {
-                    const activityPrice = 1500 + (index * 500); // Varying prices
-                    const activityCost = activityPrice * adults;
-
-                    quoteSections.activities.push({
-                        name: sight,
-                        unitPrice: activityPrice,
-                        qty: adults,
-                        total: activityCost,
+            customItems.forEach(item => {
+                if (item.type === 'Hotel') {
+                    quoteSections.hotels.push({
+                        name: item.name,
+                        city: item.location || requirement.destination,
+                        roomType: 'Standard Room',
+                        nights: duration - 1,
+                        unitPrice: item.price,
+                        qty: 1,
+                        total: item.price * (duration - 1),
+                        source: 'AI'
                     });
-                    netCost += activityCost;
-                });
-            }
-
-            // 3.5 Add Custom AI Items (Live Market)
-            if (customItems && customItems.length > 0) {
-                customItems.forEach(item => {
-                    if (item.type === 'Hotel') {
-                        quoteSections.hotels.push({
-                            name: item.name,
-                            city: item.location || requirement.destination,
-                            roomType: 'Standard Room',
-                            nights: duration - 1,
-                            unitPrice: item.price,
-                            qty: 1,
-                            total: item.price * (duration - 1),
-                            source: 'AI'
-                        });
-                        netCost += item.price * (duration - 1);
-                    } else if (item.type === 'Transport') {
-                        quoteSections.transport.push({
-                            type: item.name,
-                            days: duration,
-                            unitPrice: item.price,
-                            total: item.price * duration,
-                            source: 'AI'
-                        });
-                        netCost += item.price * duration;
-                    }
-                });
-            }
-
-            // 4. Call AI Service for Itinerary
-            let aiItineraryData = null;
-            try {
-                const aiResponse = await axios.post('http://localhost:8000/generate', {
-                    destination: requirement.destination,
-                    budget: requirement.budget,
-                    days: duration,
-                    start_date: requirement.startDate ? new Date(requirement.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-                });
-
-                if (aiResponse.data) {
-                    const aiData = aiResponse.data;
-                    aiItineraryData = {
-                        generatedAt: new Date(),
-                        summary: aiData.ai_reply || "AI Generated Itinerary",
-                        days: []
-                    };
-
-                    if (aiData.DayWiseItinerary) {
-                        for (const [dayKey, dayVal] of Object.entries(aiData.DayWiseItinerary)) {
-                            aiItineraryData.days.push({
-                                day: dayVal.day,
-                                weather: dayVal.weather_details ? `${dayVal.weather_details.temperature}°C, ${dayVal.weather_details.conditions}` : 'N/A',
-                                activities: dayVal.activities || [],
-                                cost: dayVal.approximate_cost || 0
-                            });
-                        }
-                    }
+                    netCost += item.price * (duration - 1);
+                } else if (item.type === 'Transport') {
+                    quoteSections.transport.push({
+                        type: item.name,
+                        days: duration,
+                        unitPrice: item.price,
+                        total: item.price * duration,
+                        source: 'AI'
+                    });
+                    netCost += item.price * duration;
                 }
-            } catch (error) {
-                console.error('AI Service Error:', error.message);
-                // Fail-safe: Continue without AI itinerary
-            }
+            });
 
-            // Create Quote Record
             const quote = await Quote.create({
                 requirementId,
-                partnerId: partner.userId._id,
+                partnerId: null, // No partner
                 agentId: req.user._id,
-                title: `${requirement.destination} Trip - ${requirement.tripType}`,
+                title: `${requirement.destination} Trip - Market Options`,
                 sections: quoteSections,
                 costs: {
                     net: netCost,
-                    margin: 10, // Default 10%
+                    margin: 10,
                     final: netCost * 1.1,
                     perHead: (netCost * 1.1) / adults,
                 },
                 status: 'DRAFT',
                 aiItinerary: aiItineraryData,
             });
-
             quotes.push(quote);
         }
 
