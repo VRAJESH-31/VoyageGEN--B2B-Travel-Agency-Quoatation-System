@@ -125,7 +125,7 @@ const RequirementDetails = () => {
     };
 
     const handleGenerateQuotes = async () => {
-        if (selectedPartners.length === 0) return;
+        if (selectedPartners.length === 0 && selectedAiItems.length === 0) return;
         setGenerating(true);
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };

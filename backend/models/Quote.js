@@ -9,7 +9,7 @@ const quoteSchema = new mongoose.Schema({
     partnerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
     },
     agentId: {
         type: mongoose.Schema.Types.ObjectId,
