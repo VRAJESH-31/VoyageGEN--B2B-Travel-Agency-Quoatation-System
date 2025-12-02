@@ -268,6 +268,20 @@ const QuotesList = () => {
                         font-weight: 700;
                         font-size: 16px;
                     }
+                    .ai-badge {
+                        background: linear-gradient(135deg, #a855f7, #ec4899);
+                        color: white;
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 10px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        margin-left: 8px;
+                        vertical-align: middle;
+                    }
+                    .ai-row td {
+                        background: rgba(168, 85, 247, 0.05);
+                    }
                     .cost-summary {
                         background: #18181b;
                         padding: 30px;
@@ -392,8 +406,11 @@ const QuotesList = () => {
                                     <th>Total</th>
                                 </tr>
                                 ${quote.sections.hotels.map(hotel => `
-                                <tr>
-                                    <td class="item-name">${hotel.name}</td>
+                                <tr class="${hotel.source === 'AI' ? 'ai-row' : ''}">
+                                    <td class="item-name">
+                                        ${hotel.name}
+                                        ${hotel.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
+                                    </td>
                                     <td>${hotel.city}</td>
                                     <td>${hotel.roomType}</td>
                                     <td>${hotel.nights}</td>
@@ -419,8 +436,11 @@ const QuotesList = () => {
                                     <th>Total</th>
                                 </tr>
                                 ${quote.sections.transport.map(transport => `
-                                <tr>
-                                    <td class="item-name">${transport.type}</td>
+                                <tr class="${transport.source === 'AI' ? 'ai-row' : ''}">
+                                    <td class="item-name">
+                                        ${transport.type}
+                                        ${transport.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
+                                    </td>
                                     <td>${transport.days}</td>
                                     <td class="price">₹${transport.unitPrice?.toLocaleString()}</td>
                                     <td class="price">₹${transport.total?.toLocaleString()}</td>
@@ -452,6 +472,39 @@ const QuotesList = () => {
                                 </tr>
                                 `).join('')}
                             </table>
+                        </div>
+                        ` : ''}
+
+                        ${quote.aiItinerary && quote.aiItinerary.days && quote.aiItinerary.days.length > 0 ? `
+                        <div class="section">
+                            <h2 class="section-title">
+                                <span class="section-icon">✨</span>
+                                Suggested Itinerary
+                                <span class="ai-badge" style="font-size: 14px; margin-left: 10px;">AI Curated</span>
+                            </h2>
+                            <div style="background: #18181b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden;">
+                                ${quote.aiItinerary.days.map(day => `
+                                <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <h3 style="color: #10b981; font-family: 'Playfair Display', serif; font-size: 18px;">${day.day}</h3>
+                                        <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 15px; font-size: 12px; color: #a1a1aa;">
+                                            🌤️ ${day.weather}
+                                        </span>
+                                    </div>
+                                    <ul style="list-style: none; margin-left: 0; padding-left: 0;">
+                                        ${day.activities.map(act => `
+                                            <li style="margin-bottom: 8px; color: #e4e4e7; font-size: 14px; display: flex; align-items: start; gap: 8px;">
+                                                <span style="color: #10b981; margin-top: 4px;">•</span>
+                                                ${act}
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                    <div style="margin-top: 10px; text-align: right; font-size: 13px; color: #71717a;">
+                                        Approx. Cost: <span style="color: #e4e4e7; font-weight: 600;">₹${day.cost?.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                `).join('')}
+                            </div>
                         </div>
                         ` : ''}
 
