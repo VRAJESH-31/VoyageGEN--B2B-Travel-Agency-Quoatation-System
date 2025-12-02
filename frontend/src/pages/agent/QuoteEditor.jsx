@@ -76,6 +76,51 @@ const QuoteEditor = () => {
                 </div>
             </div>
 
+            {/* AI Itinerary Section */}
+            {quote.aiItinerary && (
+                <div className="bg-zinc-900 border border-white/10 p-6 rounded-xl mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">✨</span>
+                        <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                            AI Curated Itinerary
+                        </h3>
+                    </div>
+
+                    <div className="bg-black/30 rounded-lg p-4 mb-6 border border-white/5">
+                        <p className="text-gray-300 italic leading-relaxed">
+                            "{quote.aiItinerary.summary}"
+                        </p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {quote.aiItinerary.days?.map((day, idx) => (
+                            <div key={idx} className="bg-black/20 rounded-lg p-4 border border-white/5 hover:bg-black/40 transition-colors">
+                                <div className="flex justify-between items-start mb-3">
+                                    <h4 className="font-bold text-emerald-400">{day.day}</h4>
+                                    <span className="text-xs bg-white/10 px-2 py-1 rounded text-gray-400">
+                                        {day.weather}
+                                    </span>
+                                </div>
+                                <div className="space-y-2">
+                                    {day.activities?.map((activity, actIdx) => (
+                                        <div key={actIdx} className="flex items-start gap-2 text-sm text-gray-300">
+                                            <span className="text-purple-400 mt-1">•</span>
+                                            <span>{activity}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {day.cost > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-white/5 text-right">
+                                        <span className="text-xs text-gray-500">Est. Cost: </span>
+                                        <span className="text-sm font-mono text-emerald-400">₹{day.cost.toLocaleString()}</span>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Quote Sections */}
             <div className="space-y-6">
                 {/* Hotels Section */}

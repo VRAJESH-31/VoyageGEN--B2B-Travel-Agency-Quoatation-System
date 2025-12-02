@@ -9,7 +9,7 @@ const quoteSchema = new mongoose.Schema({
     partnerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
     },
     agentId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -50,6 +50,16 @@ const quoteSchema = new mongoose.Schema({
         type: String,
         enum: ['DRAFT', 'READY', 'SENT_TO_USER'],
         default: 'DRAFT',
+    },
+    aiItinerary: {
+        generatedAt: Date,
+        summary: String,
+        days: [{
+            day: String,
+            weather: String,
+            activities: [String],
+            cost: Number
+        }]
     },
 }, {
     timestamps: true,
