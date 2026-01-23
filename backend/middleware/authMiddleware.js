@@ -15,16 +15,15 @@ const protect = async (req, res, next) => {
 
             req.user = await User.findById(decoded.id).select('-password');
 
-            next();
+            return next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            console.error('Token verification failed:', error.message);
+            return res.status(401).json({ message: 'Not authorized, token failed' });
         }
     }
 
-    if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
-    }
+    // No token provided
+    return res.status(401).json({ message: 'Not authorized, no token' });
 };
 
 const authorize = (...roles) => {
