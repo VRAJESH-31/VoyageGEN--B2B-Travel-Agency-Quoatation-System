@@ -66,52 +66,65 @@ const addInventory = async (req, res) => {
     }
 };
 
-// @desc    Filter partners (Agent)
+// @desc    Filter partners (Agent) - Flexible matching
 // @route   POST /api/partners/filter
 // @access  Private (Agent)
 const filterPartners = async (req, res) => {
     const { destination, tripType, budget, startDate, duration, adults, hotelStar } = req.body;
 
     try {
-        const query = {};
-
-        // Filter by destination (case-insensitive, partial match)
+        // Start with broad query - destination is most important
+        const mustHaveQuery = {};
+        
+        // Destination filter (most important)
         if (destination) {
-            query.destinations = { $regex: destination, $options: 'i' };
+            mustHaveQuery.destinations = { $regex: destination, $options: 'i' };
         }
 
-        // Filter by trip type via specializations (case-insensitive)
-        if (tripType) {
-            query.specializations = { $regex: tripType, $options: 'i' };
-        }
+        // Get all partners matching destination (or all if no destination)
+        let partners = await PartnerProfile.find(mustHaveQuery).populate('userId', 'name email');
 
-        // Filter by budget range - partner's starting price should be within user's budget
-        if (budget) {
-            const budgetNum = Number(budget);
-            query.$or = [
-                { 'budgetRange.min': { $lte: budgetNum } },
-                { budgetRange: { $exists: false } },
-                { 'budgetRange.min': null }
-            ];
-        }
-
-        console.log('Filter Query:', JSON.stringify(query, null, 2));
-
-        // Filter by rating (exact match for hotel star rating)
-        if (hotelStar) {
-            query.rating = { $gte: Number(hotelStar) };
-        }
-
-        let partners = await PartnerProfile.find(query).populate('userId', 'name email');
-
-        // Smart Fallback: If no partners found but destination was provided, 
-        // return partners from that destination ignoring other strict filters (like budget)
-        if (partners.length === 0 && destination) {
-            console.log(`No exact matches found for ${destination} with strict filters. Attempting fallback...`);
-            const fallbackQuery = {
-                destinations: { $regex: destination, $options: 'i' }
-            };
-            partners = await PartnerProfile.find(fallbackQuery).populate('userId', 'name email');
+        // Score-based filtering for best matches
+        if (partners.length > 0) {
+            partners = partners.map(partner => {
+                let score = 0;
+                
+                // Destination match = +100 points (already filtered)
+                if (destination && partner.destinations.some(d => d.toLowerCase().includes(destination.toLowerCase()))) {
+                    score += 100;
+                }
+                
+                // Trip type/specialization match = +50 points
+                if (tripType && partner.specializations && partner.specializations.some(s => s.toLowerCase().includes(tripType.toLowerCase()))) {
+                    score += 50;
+                }
+                
+                // Budget compatibility = +30 points
+                if (budget) {
+                    const budgetNum = Number(budget);
+                    if (!partner.budgetRange || !partner.budgetRange.min || partner.budgetRange.min <= budgetNum) {
+                        score += 30;
+                    }
+                }
+                
+                // Star rating match = +20 points
+                if (hotelStar && partner.rating >= Number(hotelStar)) {
+                    score += 20;
+                }
+                
+                return { ...partner.toObject(), matchScore: score };
+            });
+            
+            // Sort by score (best matches first)
+            partners.sort((a, b) => b.matchScore - a.matchScore);
+            
+            console.log(`Found ${partners.length} partners, sorted by relevance`);
+        } else if (!destination) {
+            // If no destination specified, return all partners
+            partners = await PartnerProfile.find({}).populate('userId', 'name email');
+            console.log(`No filters applied, returning all ${partners.length} partners`);
+        } else {
+            console.log(`No partners found for destination: ${destination}`);
         }
 
         res.json(partners);
@@ -121,36 +134,32 @@ const filterPartners = async (req, res) => {
     }
 };
 
-// @desc    Search Live Market Data via AI
-// @route   POST /api/partners/live-search
+// @desc    Fetch live hotels from SerpApi
+// @route   POST /api/partners/fetch-hotels
 // @access  Private (Agent)
-const searchLivePartners = async (req, res) => {
-    const { destination, budget, days } = req.body;
+const fetchLiveHotels = async (req, res) => {
+    const { destination, checkIn, checkOut, adults } = req.body;
 
     try {
-        const response = await axios.post('http://localhost:8000/research', {
-            destination,
-            budget,
-            days: days || 5
-        }, {
-            timeout: 90000 // Wait up to 90 seconds
-        });
-
-        res.json(response.data);
-    } catch (error) {
-        // Detailed error logging
-        if (error.response) {
-            // The Python server responded with a status code other than 2xx
-            console.error('Python Error Data:', error.response.data);
-            console.error('Python Status:', error.response.status);
-        } else if (error.request) {
-            // The request was made but no response was received
-            console.error('No response from Python service. Is it running?');
-        } else {
-            console.error('Error:', error.message);
-        }
+        const travelDataService = require('../services/travelDataService');
         
-        res.status(500).json({ message: 'Failed to fetch live data' });
+        const hotels = await travelDataService.fetchHotels(
+            destination,
+            checkIn,
+            checkOut,
+            adults || 2
+        );
+
+        res.json({
+            hotels,
+            message: hotels.length > 0 ? `Found ${hotels.length} hotels` : 'No hotels found'
+        });
+    } catch (error) {
+        console.error('Error fetching live hotels:', error.message);
+        res.status(500).json({ 
+            message: 'Failed to fetch live hotels',
+            error: error.message 
+        });
     }
 };
 
@@ -159,5 +168,5 @@ module.exports = {
     updateProfile,
     addInventory,
     filterPartners,
-    searchLivePartners,
+    fetchLiveHotels,
 };

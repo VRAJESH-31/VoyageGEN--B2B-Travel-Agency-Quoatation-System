@@ -51,15 +51,9 @@ const quoteSchema = new mongoose.Schema({
         enum: ['DRAFT', 'READY', 'SENT_TO_USER'],
         default: 'DRAFT',
     },
-    aiItinerary: {
-        generatedAt: Date,
-        summary: String,
-        days: [{
-            day: String,
-            weather: String,
-            activities: [String],
-            cost: Number
-        }]
+    itineraryText: {
+        type: String,
+        default: '',
     },
 }, {
     timestamps: true,

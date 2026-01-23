@@ -2,12 +2,14 @@ const Quote = require('../models/Quote');
 const Requirement = require('../models/Requirement');
 const PartnerProfile = require('../models/PartnerProfile');
 const axios = require('axios');
+const travelDataService = require('../services/travelDataService');
+const aiService = require('../services/aiService');
 
 // @desc    Auto-generate quotes for selected partners
 // @route   POST /api/quotes/generate
 // @access  Private (Agent)
 const generateQuotes = async (req, res) => {
-    const { requirementId, partnerIds, customItems } = req.body;
+    const { requirementId, partnerIds, customItems, selectedHotel } = req.body;
 
     try {
         const requirement = await Requirement.findById(requirementId);
@@ -17,38 +19,30 @@ const generateQuotes = async (req, res) => {
         const duration = requirement.duration || 6;
         const adults = requirement.adults || 2;
 
-        // 1. Call AI Service for Itinerary (ONCE for all quotes)
-        let aiItineraryData = null;
+        // 1. Fetch Live Hotel Data using SerpApi
+        let liveHotels = [];
         try {
-            const aiResponse = await axios.post('http://localhost:8000/generate', {
-                destination: requirement.destination,
-                budget: requirement.budget,
-                days: duration,
-                start_date: requirement.startDate ? new Date(requirement.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-            });
+            const checkInDate = requirement.startDate 
+                ? new Date(requirement.startDate).toISOString().split('T')[0] 
+                : new Date().toISOString().split('T')[0];
+            
+            const checkOutDate = requirement.startDate 
+                ? new Date(new Date(requirement.startDate).getTime() + (duration * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+                : new Date(Date.now() + (duration * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
 
-            if (aiResponse.data) {
-                const aiData = aiResponse.data;
-                aiItineraryData = {
-                    generatedAt: new Date(),
-                    summary: aiData.ai_reply || "AI Generated Itinerary",
-                    days: []
-                };
-
-                if (aiData.DayWiseItinerary) {
-                    for (const [dayKey, dayVal] of Object.entries(aiData.DayWiseItinerary)) {
-                        aiItineraryData.days.push({
-                            day: dayVal.day,
-                            weather: dayVal.weather_details ? `${dayVal.weather_details.temperature}°C, ${dayVal.weather_details.conditions}` : 'N/A',
-                            activities: dayVal.activities || [],
-                            cost: dayVal.approximate_cost || 0
-                        });
-                    }
-                }
+            liveHotels = await travelDataService.fetchHotels(
+                requirement.destination,
+                checkInDate,
+                checkOutDate,
+                adults
+            );
+            
+            if (liveHotels.length > 0) {
+                console.log(`Fetched ${liveHotels.length} live hotels for ${requirement.destination}`);
             }
         } catch (error) {
-            console.error('AI Service Error:', error.message);
-            // Fail-safe: Continue without AI itinerary
+            console.error('Live hotel fetch error:', error.message);
+            // Continue without live data
         }
 
         // 2. Generate Quotes for Selected Partners
@@ -66,19 +60,40 @@ const generateQuotes = async (req, res) => {
                 };
 
                 let netCost = 0;
+                
+                // START: Base Package Price (Partner's rate * Number of Days)
+                const basePackagePrice = (partner.startingPrice || 50000) * duration; // e.g., ₹200,000/day * 4 days = 800,000
+                netCost += basePackagePrice;
+                
+                console.log(`Partner ${partner.companyName}: Base package ₹${partner.startingPrice || 50000}/day * ${duration} days = ₹${basePackagePrice}`);
+                
+                let selectedHotelName = partner.companyName;
+                let selectedHotelPrice = partner.startingPrice || 5000;
 
-                // Add Hotel based on partner's starting price
+                // Add Hotel based on: 1) User-selected hotel, 2) Live hotel data, or 3) Partner's price
                 if (partner.type === 'Hotel' || partner.type === 'DMC' || partner.type === 'Mixed') {
-                    const hotelPrice = partner.startingPrice || 5000;
+                    // Priority 1: User-selected hotel from frontend
+                    if (selectedHotel) {
+                        selectedHotelName = selectedHotel.name;
+                        selectedHotelPrice = selectedHotel.price;
+                    }
+                    // Priority 2: Auto-fetched live hotel data
+                    else if (liveHotels.length > 0) {
+                        const liveHotel = liveHotels[0]; // Use best match (first result)
+                        selectedHotelName = liveHotel.name;
+                        selectedHotelPrice = liveHotel.price;
+                    }
+                    // Priority 3: Partner's default pricing (fallback)
+
                     const nights = duration - 1;
-                    const roomCost = hotelPrice * nights;
+                    const roomCost = selectedHotelPrice * nights;
 
                     quoteSections.hotels.push({
-                        name: partner.companyName,
+                        name: selectedHotelName,
                         city: partner.destinations[0] || requirement.destination,
                         roomType: 'Deluxe Room',
                         nights: nights,
-                        unitPrice: hotelPrice,
+                        unitPrice: selectedHotelPrice,
                         qty: 1,
                         total: roomCost,
                     });
@@ -145,6 +160,24 @@ const generateQuotes = async (req, res) => {
                     });
                 }
 
+                // Generate AI Itinerary Text for this specific quote
+                let itineraryText = '';
+                try {
+                    itineraryText = await aiService.generateItinerary(
+                        {
+                            destination: requirement.destination,
+                            duration: duration,
+                            tripType: requirement.tripType,
+                            startDate: requirement.startDate
+                        },
+                        selectedHotelName,
+                        selectedHotelPrice
+                    );
+                } catch (error) {
+                    console.error('AI Itinerary generation error:', error.message);
+                    // Continue without itinerary text
+                }
+
                 // Create Quote Record
                 const quote = await Quote.create({
                     requirementId,
@@ -159,7 +192,7 @@ const generateQuotes = async (req, res) => {
                         perHead: (netCost * 1.1) / adults,
                     },
                     status: 'DRAFT',
-                    aiItinerary: aiItineraryData,
+                    itineraryText: itineraryText,
                 });
 
                 quotes.push(quote);
@@ -213,7 +246,6 @@ const generateQuotes = async (req, res) => {
                     perHead: (netCost * 1.1) / adults,
                 },
                 status: 'DRAFT',
-                aiItinerary: aiItineraryData,
             });
             quotes.push(quote);
         }

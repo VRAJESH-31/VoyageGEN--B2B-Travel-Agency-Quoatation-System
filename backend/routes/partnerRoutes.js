@@ -5,7 +5,7 @@ const {
     updateProfile,
     addInventory,
     filterPartners,
-    searchLivePartners,
+    fetchLiveHotels,
 } = require('../controllers/partnerController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -16,6 +16,6 @@ router.post('/inventory/:type', protect, authorize('PARTNER'), addInventory);
 
 // Agent Routes
 router.post('/filter', protect, authorize('AGENT', 'ADMIN'), filterPartners);
-router.post('/live-search', protect, authorize('AGENT', 'ADMIN'), searchLivePartners);
+router.post('/fetch-hotels', protect, authorize('AGENT', 'ADMIN'), fetchLiveHotels);
 
 module.exports = router;
