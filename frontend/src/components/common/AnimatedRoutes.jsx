@@ -3,25 +3,25 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
 // Pages
-import LandingPage from '../pages/LandingPage';
-import Login from '../pages/Login';
-import Signup from '../pages/Signup';
-import PlanJourney from '../pages/PlanJourney';
-import ThankYou from '../pages/ThankYou';
+import LandingPage from '../../pages/LandingPage';
+import Login from '../../pages/Login';
+import Signup from '../../pages/Signup';
+import PlanJourney from '../../pages/PlanJourney';
+import ThankYou from '../../pages/ThankYou';
 
 // Layouts
-import AgentLayout from '../layouts/AgentLayout';
-import PartnerLayout from '../layouts/PartnerLayout';
+import AgentLayout from '../../layouts/AgentLayout';
+import PartnerLayout from '../../layouts/PartnerLayout';
 
 // Agent Pages
-import AgentDashboard from '../pages/agent/AgentDashboard';
-import RequirementDetails from '../pages/agent/RequirementDetails';
-import QuoteEditor from '../pages/agent/QuoteEditor';
-import QuotesList from '../pages/agent/QuotesList';
+import AgentDashboard from '../../pages/agent/AgentDashboard';
+import RequirementDetails from '../../pages/agent/RequirementDetails';
+import QuoteEditor from '../../pages/agent/QuoteEditor';
+import QuotesList from '../../pages/agent/QuotesList';
 
 // Partner Pages
-import PartnerDashboard from '../pages/partner/PartnerDashboard';
-import Inventory from '../pages/partner/Inventory';
+import PartnerDashboard from '../../pages/partner/PartnerDashboard';
+import Inventory from '../../pages/partner/Inventory';
 
 // Components
 import ProtectedRoute from './ProtectedRoute';
