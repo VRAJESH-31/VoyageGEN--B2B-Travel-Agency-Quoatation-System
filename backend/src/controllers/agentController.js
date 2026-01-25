@@ -1,17 +1,21 @@
 const Requirement = require('../models/Requirement');
 const AgentRun = require('../models/AgentRun');
 const { sendSuccess, sendCreated, sendNotFound, sendError } = require('../utils/response');
-const { initSteps } = require('../services/agents/agentRunHelpers');
+const { initSteps, getStepIndex, STEP_STATUS } = require('../services/agents/agentRunHelpers');
+const { normalizeRequirement } = require('../services/agents/supervisorAgentService');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
 // @access  Private (Agent/Admin)
 const startAgentRun = async (req, res) => {
+    let agentRun = null;
+    let requirement = null;
+
     try {
         const { requirementId } = req.params;
 
         // 1. Find the requirement
-        const requirement = await Requirement.findById(requirementId);
+        requirement = await Requirement.findById(requirementId);
         if (!requirement) {
             return sendNotFound(res, 'Requirement not found');
         }
@@ -22,7 +26,7 @@ const startAgentRun = async (req, res) => {
         }
 
         // 3. Create AgentRun document
-        const agentRun = await AgentRun.create({
+        agentRun = await AgentRun.create({
             requirementId: requirement._id,
             startedBy: req.user._id,
             status: 'RUNNING',
@@ -42,15 +46,74 @@ const startAgentRun = async (req, res) => {
         requirement.lastAgentRunAt = new Date();
         await requirement.save();
 
-        // 5. Return success response
+        // ========================================
+        // 5. EXECUTE SUPERVISOR STEP (Day 4)
+        // ========================================
+        const supervisorIndex = getStepIndex('SUPERVISOR'); // 0
+
+        // Mark SUPERVISOR as RUNNING
+        agentRun.steps[supervisorIndex].status = STEP_STATUS.RUNNING;
+        agentRun.steps[supervisorIndex].startedAt = new Date();
+        agentRun.steps[supervisorIndex].logs.push('Starting supervisor normalization...');
+        await agentRun.save();
+
+        try {
+            // Execute Supervisor logic
+            const { normalizedParams, warnings } = normalizeRequirement(requirement);
+
+            // Log warnings if any
+            if (warnings.length > 0) {
+                agentRun.steps[supervisorIndex].logs.push(`Warnings: ${warnings.join(', ')}`);
+            }
+            agentRun.steps[supervisorIndex].logs.push('Normalization completed successfully');
+
+            // Mark SUPERVISOR as DONE with output
+            agentRun.steps[supervisorIndex].status = STEP_STATUS.DONE;
+            agentRun.steps[supervisorIndex].endedAt = new Date();
+            agentRun.steps[supervisorIndex].output = { normalizedParams, warnings };
+            await agentRun.save();
+
+        } catch (supervisorError) {
+            // SUPERVISOR FAILED
+            console.error('Supervisor Error:', supervisorError);
+
+            agentRun.steps[supervisorIndex].status = STEP_STATUS.FAILED;
+            agentRun.steps[supervisorIndex].endedAt = new Date();
+            agentRun.steps[supervisorIndex].error = supervisorError.message;
+            agentRun.steps[supervisorIndex].logs.push(`Error: ${supervisorError.message}`);
+            agentRun.status = 'FAILED';
+            agentRun.error = `Supervisor failed: ${supervisorError.message}`;
+            await agentRun.save();
+
+            // Update Requirement status to FAILED
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+
+            return sendError(res, `Supervisor step failed: ${supervisorError.message}`, 422);
+        }
+
+        // 6. Return success response (Supervisor complete, pipeline continues)
         return sendCreated(res, {
             agentRunId: agentRun._id,
             requirementId: requirement._id,
             status: agentRun.status,
-        }, 'Agent run started');
+            supervisorStatus: agentRun.steps[supervisorIndex].status,
+        }, 'Agent run started, Supervisor step completed');
 
     } catch (error) {
         console.error('startAgentRun Error:', error);
+
+        // Cleanup on unexpected error
+        if (agentRun) {
+            agentRun.status = 'FAILED';
+            agentRun.error = error.message;
+            await agentRun.save();
+        }
+        if (requirement && requirement.agentStatus === 'IN_AGENT') {
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+        }
+
         return sendError(res, error.message, 500);
     }
 };
