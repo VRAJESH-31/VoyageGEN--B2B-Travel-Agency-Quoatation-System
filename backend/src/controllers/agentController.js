@@ -6,6 +6,7 @@ const { normalizeRequirement } = require('../services/agents/supervisorAgentServ
 const { performResearch } = require('../services/agents/researchAgentService');
 const { generateItineraryJSON } = require('../services/agents/plannerAgentService');
 const { calculatePricing } = require('../services/agents/priceAgentService');
+const { performQualityCheck } = require('../services/agents/qualityAgentService');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
@@ -182,15 +183,65 @@ const startAgentRun = async (req, res) => {
             return sendError(res, `Price failed: ${err.message}`, 422);
         }
 
-        // 9. Return success (4 steps complete, QUALITY pending)
+        // ========================================
+        // 9. QUALITY STEP (Day 8)
+        // ========================================
+        const qualityIndex = getStepIndex('QUALITY');
+        agentRun.steps[qualityIndex].status = STEP_STATUS.RUNNING;
+        agentRun.steps[qualityIndex].startedAt = new Date();
+        agentRun.steps[qualityIndex].logs.push('Running quality checks...');
+        await agentRun.save();
+
+        let qualityOutput = null;
+        try {
+            qualityOutput = performQualityCheck({
+                supervisorOutput: agentRun.steps[getStepIndex('SUPERVISOR')].output,
+                plannerOutput,
+                priceOutput
+            });
+            
+            agentRun.steps[qualityIndex].logs.push(`Quality score: ${qualityOutput.qualityScore}/100`);
+            agentRun.steps[qualityIndex].logs.push(`Passed: ${qualityOutput.passedChecks.join(', ')}`);
+            if (qualityOutput.failedChecks.length) {
+                agentRun.steps[qualityIndex].logs.push(`Failed: ${qualityOutput.failedChecks.join(', ')}`);
+            }
+            if (qualityOutput.fixes.length) {
+                agentRun.steps[qualityIndex].logs.push(`Auto-fixed: ${qualityOutput.fixes.length} issues`);
+            }
+            agentRun.steps[qualityIndex].status = STEP_STATUS.DONE;
+            agentRun.steps[qualityIndex].endedAt = new Date();
+            agentRun.steps[qualityIndex].output = qualityOutput;
+            
+            // Update final result with quality-fixed itinerary
+            agentRun.finalResult = qualityOutput.finalItinerary;
+            agentRun.status = 'DONE';
+            await agentRun.save();
+            
+            // Mark requirement as COMPLETED
+            requirement.agentStatus = 'COMPLETED';
+            await requirement.save();
+        } catch (err) {
+            agentRun.steps[qualityIndex].status = STEP_STATUS.FAILED;
+            agentRun.steps[qualityIndex].endedAt = new Date();
+            agentRun.steps[qualityIndex].error = err.message;
+            agentRun.status = 'FAILED';
+            agentRun.error = `Quality failed: ${err.message}`;
+            await agentRun.save();
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+            return sendError(res, `Quality failed: ${err.message}`, 422);
+        }
+
+        // 10. Return success - All 5 steps complete
         return sendCreated(res, {
             agentRunId: agentRun._id,
             requirementId: requirement._id,
             status: agentRun.status,
-            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE'],
+            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE', 'QUALITY'],
             finalCost: priceOutput?.finalCost || 0,
             budgetFit: priceOutput?.budgetFit || false,
-        }, 'Supervisor, Research, Planner, and Price steps completed');
+            qualityScore: qualityOutput?.qualityScore || 0,
+        }, 'Agent run completed successfully');
 
     } catch (error) {
         console.error('startAgentRun Error:', error);
