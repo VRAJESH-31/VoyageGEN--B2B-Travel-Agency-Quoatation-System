@@ -39,6 +39,7 @@ app.use('/api/auth', authLimiter, require('./src/routes/authRoutes'));
 app.use('/api/requirements', require('./src/routes/requirementRoutes'));
 app.use('/api/partners', require('./src/routes/partnerRoutes'));
 app.use('/api/quotes', require('./src/routes/quoteRoutes'));
+app.use('/api/agent', require('./src/routes/agentRoutes'));
 
 // Error Handling
 app.use(notFound);
