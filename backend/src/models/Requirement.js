@@ -51,6 +51,11 @@ const requirementSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    latestQuoteId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quote',
+        default: null,
+    },
 }, {
     timestamps: true,
 });

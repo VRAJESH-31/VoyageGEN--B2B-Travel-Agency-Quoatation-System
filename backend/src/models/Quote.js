@@ -55,6 +55,15 @@ const quoteSchema = new mongoose.Schema({
         type: String,
         default: '',
     },
+    itineraryJson: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+    },
+    agentRunId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AgentRun',
+        default: null,
+    },
 }, {
     timestamps: true,
 });

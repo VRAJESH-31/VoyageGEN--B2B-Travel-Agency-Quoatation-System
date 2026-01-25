@@ -83,6 +83,11 @@ const agentRunSchema = new mongoose.Schema({
             default: 'v1',
         },
     },
+    quoteId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quote',
+        default: null,
+    },
 }, {
     timestamps: true,
 });

@@ -7,6 +7,7 @@ const { performResearch } = require('../services/agents/researchAgentService');
 const { generateItineraryJSON } = require('../services/agents/plannerAgentService');
 const { calculatePricing } = require('../services/agents/priceAgentService');
 const { performQualityCheck } = require('../services/agents/qualityAgentService');
+const { createQuoteFromAgentRun } = require('../services/agents/agentToQuoteMapper');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
@@ -232,16 +233,36 @@ const startAgentRun = async (req, res) => {
             return sendError(res, `Quality failed: ${err.message}`, 422);
         }
 
-        // 10. Return success - All 5 steps complete
+        // ========================================
+        // 10. AUTO-CREATE QUOTE (Day 9)
+        // ========================================
+        let quote = null;
+        try {
+            quote = await createQuoteFromAgentRun({ agentRun, requirement });
+            
+            // Link quote back to AgentRun and Requirement
+            agentRun.quoteId = quote._id;
+            await agentRun.save();
+            
+            requirement.latestQuoteId = quote._id;
+            requirement.status = 'QUOTES_READY';
+            await requirement.save();
+        } catch (quoteErr) {
+            console.error('Quote creation failed:', quoteErr);
+            // Don't fail the entire run, just log it
+        }
+
+        // 11. Return success - All 5 steps + quote
         return sendCreated(res, {
             agentRunId: agentRun._id,
             requirementId: requirement._id,
             status: agentRun.status,
             stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE', 'QUALITY'],
+            quoteId: quote?._id || null,
             finalCost: priceOutput?.finalCost || 0,
             budgetFit: priceOutput?.budgetFit || false,
             qualityScore: qualityOutput?.qualityScore || 0,
-        }, 'Agent run completed successfully');
+        }, 'Agent run completed, quote generated');
 
     } catch (error) {
         console.error('startAgentRun Error:', error);
