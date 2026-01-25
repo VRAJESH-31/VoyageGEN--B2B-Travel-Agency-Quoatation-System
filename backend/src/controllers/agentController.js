@@ -3,6 +3,8 @@ const AgentRun = require('../models/AgentRun');
 const { sendSuccess, sendCreated, sendNotFound, sendError } = require('../utils/response');
 const { initSteps, getStepIndex, STEP_STATUS } = require('../services/agents/agentRunHelpers');
 const { normalizeRequirement } = require('../services/agents/supervisorAgentService');
+const { performResearch } = require('../services/agents/researchAgentService');
+const { generateItineraryJSON } = require('../services/agents/plannerAgentService');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
@@ -10,6 +12,7 @@ const { normalizeRequirement } = require('../services/agents/supervisorAgentServ
 const startAgentRun = async (req, res) => {
     let agentRun = null;
     let requirement = null;
+    let normalizedParams = null;
 
     try {
         const { requirementId } = req.params;
@@ -20,7 +23,7 @@ const startAgentRun = async (req, res) => {
             return sendNotFound(res, 'Requirement not found');
         }
 
-        // 2. Block duplicate run - prevent starting if already running
+        // 2. Block duplicate run
         if (requirement.agentStatus === 'IN_AGENT') {
             return sendError(res, 'Agent run already in progress for this requirement', 409);
         }
@@ -33,72 +36,124 @@ const startAgentRun = async (req, res) => {
             steps: initSteps(),
             finalResult: null,
             error: null,
-            meta: {
-                provider: 'gemini',
-                model: 'gemini-2.5-flash',
-                version: 'v1',
-            },
+            meta: { provider: 'gemini', model: 'gemini-2.5-flash', version: 'v1' },
         });
 
-        // 4. Update Requirement with agent tracking
+        // 4. Update Requirement
         requirement.agentStatus = 'IN_AGENT';
         requirement.lastAgentRunId = agentRun._id;
         requirement.lastAgentRunAt = new Date();
         await requirement.save();
 
         // ========================================
-        // 5. EXECUTE SUPERVISOR STEP (Day 4)
+        // 5. SUPERVISOR STEP
         // ========================================
-        const supervisorIndex = getStepIndex('SUPERVISOR'); // 0
-
-        // Mark SUPERVISOR as RUNNING
+        const supervisorIndex = getStepIndex('SUPERVISOR');
         agentRun.steps[supervisorIndex].status = STEP_STATUS.RUNNING;
         agentRun.steps[supervisorIndex].startedAt = new Date();
-        agentRun.steps[supervisorIndex].logs.push('Starting supervisor normalization...');
+        agentRun.steps[supervisorIndex].logs.push('Starting normalization...');
         await agentRun.save();
 
         try {
-            // Execute Supervisor logic
-            const { normalizedParams, warnings } = normalizeRequirement(requirement);
-
-            // Log warnings if any
-            if (warnings.length > 0) {
-                agentRun.steps[supervisorIndex].logs.push(`Warnings: ${warnings.join(', ')}`);
+            const supervisorResult = normalizeRequirement(requirement);
+            normalizedParams = supervisorResult.normalizedParams;
+            
+            if (supervisorResult.warnings.length > 0) {
+                agentRun.steps[supervisorIndex].logs.push(`Warnings: ${supervisorResult.warnings.join(', ')}`);
             }
-            agentRun.steps[supervisorIndex].logs.push('Normalization completed successfully');
-
-            // Mark SUPERVISOR as DONE with output
             agentRun.steps[supervisorIndex].status = STEP_STATUS.DONE;
             agentRun.steps[supervisorIndex].endedAt = new Date();
-            agentRun.steps[supervisorIndex].output = { normalizedParams, warnings };
+            agentRun.steps[supervisorIndex].output = supervisorResult;
             await agentRun.save();
-
-        } catch (supervisorError) {
-            // SUPERVISOR FAILED
-            console.error('Supervisor Error:', supervisorError);
-
+        } catch (err) {
             agentRun.steps[supervisorIndex].status = STEP_STATUS.FAILED;
             agentRun.steps[supervisorIndex].endedAt = new Date();
-            agentRun.steps[supervisorIndex].error = supervisorError.message;
-            agentRun.steps[supervisorIndex].logs.push(`Error: ${supervisorError.message}`);
+            agentRun.steps[supervisorIndex].error = err.message;
             agentRun.status = 'FAILED';
-            agentRun.error = `Supervisor failed: ${supervisorError.message}`;
+            agentRun.error = `Supervisor failed: ${err.message}`;
             await agentRun.save();
-
-            // Update Requirement status to FAILED
             requirement.agentStatus = 'FAILED';
             await requirement.save();
-
-            return sendError(res, `Supervisor step failed: ${supervisorError.message}`, 422);
+            return sendError(res, `Supervisor failed: ${err.message}`, 422);
         }
 
-        // 6. Return success response (Supervisor complete, pipeline continues)
+        // ========================================
+        // 6. RESEARCH STEP
+        // ========================================
+        const researchIndex = getStepIndex('RESEARCH');
+        agentRun.steps[researchIndex].status = STEP_STATUS.RUNNING;
+        agentRun.steps[researchIndex].startedAt = new Date();
+        agentRun.steps[researchIndex].logs.push('Starting research...');
+        await agentRun.save();
+
+        let researchOutput = null;
+        try {
+            researchOutput = await performResearch(normalizedParams);
+            if (researchOutput.logs?.length) {
+                agentRun.steps[researchIndex].logs.push(...researchOutput.logs);
+            }
+            agentRun.steps[researchIndex].logs.push(`Found ${researchOutput.hotels?.length || 0} hotels`);
+            agentRun.steps[researchIndex].status = STEP_STATUS.DONE;
+            agentRun.steps[researchIndex].endedAt = new Date();
+            agentRun.steps[researchIndex].output = researchOutput;
+            await agentRun.save();
+        } catch (err) {
+            agentRun.steps[researchIndex].status = STEP_STATUS.FAILED;
+            agentRun.steps[researchIndex].endedAt = new Date();
+            agentRun.steps[researchIndex].error = err.message;
+            agentRun.status = 'FAILED';
+            agentRun.error = `Research failed: ${err.message}`;
+            await agentRun.save();
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+            return sendError(res, `Research failed: ${err.message}`, 422);
+        }
+
+        // ========================================
+        // 7. PLANNER STEP (Day 6)
+        // ========================================
+        const plannerIndex = getStepIndex('PLANNER');
+        agentRun.steps[plannerIndex].status = STEP_STATUS.RUNNING;
+        agentRun.steps[plannerIndex].startedAt = new Date();
+        agentRun.steps[plannerIndex].logs.push('Starting itinerary generation...');
+        await agentRun.save();
+
+        let plannerOutput = null;
+        try {
+            plannerOutput = await generateItineraryJSON(normalizedParams, researchOutput);
+            
+            agentRun.steps[plannerIndex].logs.push(`Generated in ${plannerOutput.attempts} attempt(s)`);
+            if (plannerOutput.warnings?.length) {
+                agentRun.steps[plannerIndex].logs.push(`Warnings: ${plannerOutput.warnings.join(', ')}`);
+            }
+            agentRun.steps[plannerIndex].status = STEP_STATUS.DONE;
+            agentRun.steps[plannerIndex].endedAt = new Date();
+            agentRun.steps[plannerIndex].output = plannerOutput;
+            
+            // Store final itinerary as AgentRun result
+            agentRun.finalResult = plannerOutput.itinerary;
+            await agentRun.save();
+        } catch (err) {
+            agentRun.steps[plannerIndex].status = STEP_STATUS.FAILED;
+            agentRun.steps[plannerIndex].endedAt = new Date();
+            agentRun.steps[plannerIndex].error = err.message;
+            agentRun.status = 'FAILED';
+            agentRun.error = `Planner failed: ${err.message}`;
+            await agentRun.save();
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+            return sendError(res, `Planner failed: ${err.message}`, 422);
+        }
+
+        // 8. Return success (3 steps complete, PRICE/QUALITY pending)
         return sendCreated(res, {
             agentRunId: agentRun._id,
             requirementId: requirement._id,
             status: agentRun.status,
-            supervisorStatus: agentRun.steps[supervisorIndex].status,
-        }, 'Agent run started, Supervisor step completed');
+            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER'],
+            hotelsFound: researchOutput?.hotels?.length || 0,
+            itineraryDays: plannerOutput?.itinerary?.days?.length || 0,
+        }, 'Supervisor, Research, and Planner steps completed');
 
     } catch (error) {
         console.error('startAgentRun Error:', error);
