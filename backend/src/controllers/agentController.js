@@ -16,6 +16,7 @@ const startAgentRun = async (req, res) => {
     let agentRun = null;
     let requirement = null;
     let normalizedParams = null;
+    const forceRun = req.body?.forceRun === true;
 
     try {
         const { requirementId } = req.params;
@@ -26,9 +27,15 @@ const startAgentRun = async (req, res) => {
             return sendNotFound(res, 'Requirement not found');
         }
 
-        // 2. Block duplicate run
-        if (requirement.agentStatus === 'IN_AGENT') {
-            return sendError(res, 'Agent run already in progress for this requirement', 409);
+        // 2. Block duplicate run (unless forceRun is true)
+        if (requirement.agentStatus === 'IN_AGENT' && !forceRun) {
+            const existingRun = await AgentRun.findOne({ 
+                requirementId: requirement._id, 
+                status: 'RUNNING' 
+            }).select('_id');
+            return sendError(res, 'Agent run already in progress', 409, {
+                existingAgentRunId: existingRun?._id || requirement.lastAgentRunId
+            });
         }
 
         // 3. Create AgentRun document
