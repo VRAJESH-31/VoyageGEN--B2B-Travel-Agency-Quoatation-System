@@ -1,17 +1,7 @@
 const Requirement = require('../models/Requirement');
 const AgentRun = require('../models/AgentRun');
 const { sendSuccess, sendCreated, sendNotFound, sendError } = require('../utils/response');
-
-/**
- * Initialize 5 agent pipeline steps with PENDING status
- */
-const initSteps = () => [
-    { stepName: 'SUPERVISOR', status: 'PENDING', startedAt: null, endedAt: null, logs: [], output: null, error: null },
-    { stepName: 'RESEARCH', status: 'PENDING', startedAt: null, endedAt: null, logs: [], output: null, error: null },
-    { stepName: 'PLANNER', status: 'PENDING', startedAt: null, endedAt: null, logs: [], output: null, error: null },
-    { stepName: 'PRICE', status: 'PENDING', startedAt: null, endedAt: null, logs: [], output: null, error: null },
-    { stepName: 'QUALITY', status: 'PENDING', startedAt: null, endedAt: null, logs: [], output: null, error: null },
-];
+const { initSteps } = require('../services/agents/agentRunHelpers');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
