@@ -5,6 +5,7 @@ const { initSteps, getStepIndex, STEP_STATUS } = require('../services/agents/age
 const { normalizeRequirement } = require('../services/agents/supervisorAgentService');
 const { performResearch } = require('../services/agents/researchAgentService');
 const { generateItineraryJSON } = require('../services/agents/plannerAgentService');
+const { calculatePricing } = require('../services/agents/priceAgentService');
 
 // @desc    Start a new agent run for a requirement
 // @route   POST /api/agent/run/:requirementId
@@ -129,8 +130,6 @@ const startAgentRun = async (req, res) => {
             agentRun.steps[plannerIndex].status = STEP_STATUS.DONE;
             agentRun.steps[plannerIndex].endedAt = new Date();
             agentRun.steps[plannerIndex].output = plannerOutput;
-            
-            // Store final itinerary as AgentRun result
             agentRun.finalResult = plannerOutput.itinerary;
             await agentRun.save();
         } catch (err) {
@@ -145,15 +144,53 @@ const startAgentRun = async (req, res) => {
             return sendError(res, `Planner failed: ${err.message}`, 422);
         }
 
-        // 8. Return success (3 steps complete, PRICE/QUALITY pending)
+        // ========================================
+        // 8. PRICE STEP (Day 7)
+        // ========================================
+        const priceIndex = getStepIndex('PRICE');
+        agentRun.steps[priceIndex].status = STEP_STATUS.RUNNING;
+        agentRun.steps[priceIndex].startedAt = new Date();
+        agentRun.steps[priceIndex].logs.push('Calculating pricing...');
+        await agentRun.save();
+
+        let priceOutput = null;
+        try {
+            priceOutput = calculatePricing({
+                supervisorOutput: agentRun.steps[getStepIndex('SUPERVISOR')].output,
+                researchOutput,
+                plannerOutput
+            });
+            
+            agentRun.steps[priceIndex].logs.push(`Net: ₹${priceOutput.netCost}, Final: ₹${priceOutput.finalCost}`);
+            agentRun.steps[priceIndex].logs.push(`Budget fit: ${priceOutput.budgetFit}`);
+            if (priceOutput.adjustedHotel) {
+                agentRun.steps[priceIndex].logs.push(`Adjusted hotel: ${priceOutput.adjustedHotel}`);
+            }
+            agentRun.steps[priceIndex].status = STEP_STATUS.DONE;
+            agentRun.steps[priceIndex].endedAt = new Date();
+            agentRun.steps[priceIndex].output = priceOutput;
+            await agentRun.save();
+        } catch (err) {
+            agentRun.steps[priceIndex].status = STEP_STATUS.FAILED;
+            agentRun.steps[priceIndex].endedAt = new Date();
+            agentRun.steps[priceIndex].error = err.message;
+            agentRun.status = 'FAILED';
+            agentRun.error = `Price failed: ${err.message}`;
+            await agentRun.save();
+            requirement.agentStatus = 'FAILED';
+            await requirement.save();
+            return sendError(res, `Price failed: ${err.message}`, 422);
+        }
+
+        // 9. Return success (4 steps complete, QUALITY pending)
         return sendCreated(res, {
             agentRunId: agentRun._id,
             requirementId: requirement._id,
             status: agentRun.status,
-            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER'],
-            hotelsFound: researchOutput?.hotels?.length || 0,
-            itineraryDays: plannerOutput?.itinerary?.days?.length || 0,
-        }, 'Supervisor, Research, and Planner steps completed');
+            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE'],
+            finalCost: priceOutput?.finalCost || 0,
+            budgetFit: priceOutput?.budgetFit || false,
+        }, 'Supervisor, Research, Planner, and Price steps completed');
 
     } catch (error) {
         console.error('startAgentRun Error:', error);
