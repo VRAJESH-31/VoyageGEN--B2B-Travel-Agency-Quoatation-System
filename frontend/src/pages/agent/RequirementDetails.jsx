@@ -34,58 +34,140 @@ const RequirementDetails = () => {
         tripType: '',
     });
 
-    // Agent UI State (UI simulation only - no API)
+    // Agent UI State
     const [agentStatus, setAgentStatus] = useState('IDLE'); // IDLE | RUNNING | DONE | ERROR
     const [agentStep, setAgentStep] = useState(0);
     const [agentResult, setAgentResult] = useState(null);
     const [agentError, setAgentError] = useState(null);
-    const timeoutRefs = useRef([]);
+    const [agentRunId, setAgentRunId] = useState(null);
+    const pollingRef = useRef(null);
 
-    // Cleanup timeouts on unmount
+    // Cleanup polling on unmount
     useEffect(() => {
         return () => {
-            timeoutRefs.current.forEach(id => clearTimeout(id));
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+            }
         };
     }, []);
 
-    // Simulate agent progress (UI only)
-    const runAgentSimulation = useCallback(() => {
-        if (agentStatus === 'RUNNING') return;
+    // Map backend steps to UI step index
+    const mapStepsToUI = (steps) => {
+        if (!steps || steps.length === 0) return 0;
 
-        // Clear previous timeouts
-        timeoutRefs.current.forEach(id => clearTimeout(id));
-        timeoutRefs.current = [];
+        // Find the current running step or the last completed step
+        let completedCount = 0;
+        for (const step of steps) {
+            if (step.status === 'DONE') {
+                completedCount++;
+            } else if (step.status === 'RUNNING') {
+                return completedCount; // Currently running step
+            } else if (step.status === 'FAILED') {
+                return completedCount; // Failed at this step
+            }
+        }
+        return completedCount;
+    };
+
+    // Poll agent run status
+    const pollAgentRun = useCallback(async (runId) => {
+        if (!runId || !user?.token) return;
+
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            const res = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/agent/run/${runId}`,
+                config
+            );
+
+            const run = res.data?.data || res.data;
+
+            // Update step progress
+            setAgentStep(mapStepsToUI(run.steps));
+
+            if (run.status === 'DONE') {
+                // Stop polling
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                }
+
+                // Extract result from run
+                const priceStep = run.steps?.find(s => s.stepName === 'PRICE');
+                const qualityStep = run.steps?.find(s => s.stepName === 'QUALITY');
+
+                setAgentStatus('DONE');
+                setAgentResult({
+                    summary: `${requirement?.duration || 5}-day ${requirement?.tripType || 'Trip'} in ${requirement?.destination || 'Destination'}`,
+                    finalCost: priceStep?.output?.finalCost || 0,
+                    budget: requirement?.budget || 100000,
+                    budgetFit: priceStep?.output?.budgetFit ?? true,
+                    qualityScore: qualityStep?.output?.qualityScore || 0,
+                    quoteId: run.quoteId || null,
+                });
+            } else if (run.status === 'FAILED') {
+                // Stop polling on failure
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                }
+                setAgentStatus('ERROR');
+                setAgentError(run.error || 'Agent run failed');
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+            // Don't stop polling on transient errors
+        }
+    }, [user, requirement]);
+
+    // Start agent run (real API call)
+    const runAgent = useCallback(async () => {
+        if (agentStatus === 'RUNNING' || !user?.token) return;
+
+        // Clear previous polling
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+        }
 
         setAgentStatus('RUNNING');
         setAgentStep(0);
         setAgentResult(null);
         setAgentError(null);
 
-        const stepDelays = [800, 1200, 1500, 1000, 800];
-        let currentStep = 0;
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/agent/run/${id}`,
+                {},
+                config
+            );
 
-        const advanceStep = () => {
-            currentStep++;
-            setAgentStep(currentStep);
+            const runId = res.data?.data?.agentRunId || res.data?.agentRunId;
+            setAgentRunId(runId);
 
-            if (currentStep < AGENT_STEPS.length) {
-                const tid = setTimeout(advanceStep, stepDelays[currentStep]);
-                timeoutRefs.current.push(tid);
+            // Start polling every 3 seconds
+            pollingRef.current = setInterval(() => {
+                pollAgentRun(runId);
+            }, 3000);
+
+            // Also poll immediately
+            pollAgentRun(runId);
+
+        } catch (err) {
+            const status = err.response?.status;
+            const message = err.response?.data?.message || err.message;
+
+            if (status === 409) {
+                // Duplicate run - show friendly message
+                setAgentError('Agent run already in progress. Please wait or force rerun.');
+                setAgentStatus('ERROR');
             } else {
-                setAgentStatus('DONE');
-                setAgentResult({
-                    summary: `${requirement?.duration || 5}-day ${requirement?.tripType || 'Trip'} in ${requirement?.destination || 'Destination'}`,
-                    finalCost: Math.round((requirement?.budget || 100000) * 0.92),
-                    budget: requirement?.budget || 100000,
-                    budgetFit: true,
-                    qualityScore: 85,
-                });
+                setAgentError(message || 'Failed to start agent');
+                setAgentStatus('ERROR');
             }
-        };
-
-        const tid = setTimeout(advanceStep, stepDelays[0]);
-        timeoutRefs.current.push(tid);
-    }, [agentStatus, requirement]);
+        }
+    }, [agentStatus, user, id, pollAgentRun]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -284,7 +366,7 @@ const RequirementDetails = () => {
                 {(agentStatus === 'IDLE' || agentStatus === 'ERROR') && (
                     <div className="mt-4">
                         <button
-                            onClick={runAgentSimulation}
+                            onClick={runAgent}
                             disabled={agentStatus === 'RUNNING'}
                             className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-emerald-500 disabled:hover:to-teal-500"
                         >
