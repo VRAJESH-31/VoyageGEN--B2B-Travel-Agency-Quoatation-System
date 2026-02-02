@@ -9,14 +9,14 @@ const createRequirementSchema = z.object({
     body: z.object({
         destination: z.string().min(1, 'Destination is required'),
         tripType: z.string().min(1, 'Trip type is required'),
-        budget: z.number().positive('Budget must be greater than 0'),
-        duration: z.number().int().min(1, 'Duration must be at least 1 day').optional(),
+        budget: z.coerce.number().positive('Budget must be greater than 0'),
+        duration: z.coerce.number().int().min(1, 'Duration must be at least 1 day').optional(),
         startDate: z.string().optional(),
         pax: z.object({
-            adults: z.number().int().min(1, 'At least 1 adult required').optional(),
-            children: z.number().int().min(0).optional()
+            adults: z.coerce.number().int().min(1, 'At least 1 adult required').optional(),
+            children: z.coerce.number().int().min(0).optional()
         }).optional(),
-        hotelStar: z.number().min(1).max(5).optional(),
+        hotelStar: z.coerce.number().min(1).max(5).optional(),
         preferences: z.array(z.string()).optional(),
         contactInfo: z.object({
             name: z.string().min(1, 'Contact name is required'),
@@ -37,14 +37,14 @@ const updateRequirementSchema = z.object({
     body: z.object({
         destination: z.string().min(1).optional(),
         tripType: z.string().min(1).optional(),
-        budget: z.number().positive().optional(),
-        duration: z.number().int().min(1).optional(),
+        budget: z.coerce.number().positive().optional(),
+        duration: z.coerce.number().int().min(1).optional(),
         startDate: z.string().optional(),
         pax: z.object({
-            adults: z.number().int().min(1).optional(),
-            children: z.number().int().min(0).optional()
+            adults: z.coerce.number().int().min(1).optional(),
+            children: z.coerce.number().int().min(0).optional()
         }).optional(),
-        hotelStar: z.number().min(1).max(5).optional(),
+        hotelStar: z.coerce.number().min(1).max(5).optional(),
         preferences: z.array(z.string()).optional(),
         contactInfo: z.object({
             name: z.string().min(1).optional(),

@@ -15,8 +15,7 @@ const { createQuoteFromAgentRun } = require('../services/agents/agentToQuoteMapp
 const startAgentRun = async (req, res) => {
     let agentRun = null;
     let requirement = null;
-    let normalizedParams = null;
-    const forceRun = req.body?.forceRun === true;
+    const forceRun = req.query?.forceRun === true || req.query?.forceRun === 'true';
 
     try {
         const { requirementId } = req.params;
@@ -55,8 +54,34 @@ const startAgentRun = async (req, res) => {
         requirement.lastAgentRunAt = new Date();
         await requirement.save();
 
+        // 5. Send Immediate Response (Async Agent Pattern)
+        sendCreated(res, {
+            agentRunId: agentRun._id,
+            requirementId: requirement._id,
+            status: 'RUNNING',
+            steps: agentRun.steps,
+            message: 'Agent started in background'
+        });
+
+        // 6. Start Background Process (Fire and Forget)
+        processAgentRun(agentRun, requirement);
+
+    } catch (error) {
+        console.error('startAgentRun Error:', error);
+        return sendError(res, error.message, 500);
+    }
+};
+
+// Internal function to process the agent pipeline asynchronously
+const processAgentRun = async (agentRun, requirement) => {
+    let normalizedParams = null;
+    let researchOutput = null;
+    let plannerOutput = null;
+    let priceOutput = null;
+
+    try {
         // ========================================
-        // 5. SUPERVISOR STEP
+        // 1. SUPERVISOR STEP
         // ========================================
         const supervisorIndex = getStepIndex('SUPERVISOR');
         agentRun.steps[supervisorIndex].status = STEP_STATUS.RUNNING;
@@ -76,19 +101,11 @@ const startAgentRun = async (req, res) => {
             agentRun.steps[supervisorIndex].output = supervisorResult;
             await agentRun.save();
         } catch (err) {
-            agentRun.steps[supervisorIndex].status = STEP_STATUS.FAILED;
-            agentRun.steps[supervisorIndex].endedAt = new Date();
-            agentRun.steps[supervisorIndex].error = err.message;
-            agentRun.status = 'FAILED';
-            agentRun.error = `Supervisor failed: ${err.message}`;
-            await agentRun.save();
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-            return sendError(res, `Supervisor failed: ${err.message}`, 422);
+            throw new Error(`Supervisor failed: ${err.message}`);
         }
 
         // ========================================
-        // 6. RESEARCH STEP
+        // 2. RESEARCH STEP
         // ========================================
         const researchIndex = getStepIndex('RESEARCH');
         agentRun.steps[researchIndex].status = STEP_STATUS.RUNNING;
@@ -96,7 +113,6 @@ const startAgentRun = async (req, res) => {
         agentRun.steps[researchIndex].logs.push('Starting research...');
         await agentRun.save();
 
-        let researchOutput = null;
         try {
             researchOutput = await performResearch(normalizedParams);
             if (researchOutput.logs?.length) {
@@ -108,19 +124,11 @@ const startAgentRun = async (req, res) => {
             agentRun.steps[researchIndex].output = researchOutput;
             await agentRun.save();
         } catch (err) {
-            agentRun.steps[researchIndex].status = STEP_STATUS.FAILED;
-            agentRun.steps[researchIndex].endedAt = new Date();
-            agentRun.steps[researchIndex].error = err.message;
-            agentRun.status = 'FAILED';
-            agentRun.error = `Research failed: ${err.message}`;
-            await agentRun.save();
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-            return sendError(res, `Research failed: ${err.message}`, 422);
+            throw new Error(`Research failed: ${err.message}`);
         }
 
         // ========================================
-        // 7. PLANNER STEP (Day 6)
+        // 3. PLANNER STEP
         // ========================================
         const plannerIndex = getStepIndex('PLANNER');
         agentRun.steps[plannerIndex].status = STEP_STATUS.RUNNING;
@@ -128,7 +136,6 @@ const startAgentRun = async (req, res) => {
         agentRun.steps[plannerIndex].logs.push('Starting itinerary generation...');
         await agentRun.save();
 
-        let plannerOutput = null;
         try {
             plannerOutput = await generateItineraryJSON(normalizedParams, researchOutput);
             
@@ -142,19 +149,11 @@ const startAgentRun = async (req, res) => {
             agentRun.finalResult = plannerOutput.itinerary;
             await agentRun.save();
         } catch (err) {
-            agentRun.steps[plannerIndex].status = STEP_STATUS.FAILED;
-            agentRun.steps[plannerIndex].endedAt = new Date();
-            agentRun.steps[plannerIndex].error = err.message;
-            agentRun.status = 'FAILED';
-            agentRun.error = `Planner failed: ${err.message}`;
-            await agentRun.save();
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-            return sendError(res, `Planner failed: ${err.message}`, 422);
+            throw new Error(`Planner failed: ${err.message}`);
         }
 
         // ========================================
-        // 8. PRICE STEP (Day 7)
+        // 4. PRICE STEP
         // ========================================
         const priceIndex = getStepIndex('PRICE');
         agentRun.steps[priceIndex].status = STEP_STATUS.RUNNING;
@@ -162,7 +161,6 @@ const startAgentRun = async (req, res) => {
         agentRun.steps[priceIndex].logs.push('Calculating pricing...');
         await agentRun.save();
 
-        let priceOutput = null;
         try {
             priceOutput = calculatePricing({
                 supervisorOutput: agentRun.steps[getStepIndex('SUPERVISOR')].output,
@@ -180,19 +178,11 @@ const startAgentRun = async (req, res) => {
             agentRun.steps[priceIndex].output = priceOutput;
             await agentRun.save();
         } catch (err) {
-            agentRun.steps[priceIndex].status = STEP_STATUS.FAILED;
-            agentRun.steps[priceIndex].endedAt = new Date();
-            agentRun.steps[priceIndex].error = err.message;
-            agentRun.status = 'FAILED';
-            agentRun.error = `Price failed: ${err.message}`;
-            await agentRun.save();
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-            return sendError(res, `Price failed: ${err.message}`, 422);
+            throw new Error(`Price failed: ${err.message}`);
         }
 
         // ========================================
-        // 9. QUALITY STEP (Day 8)
+        // 5. QUALITY STEP
         // ========================================
         const qualityIndex = getStepIndex('QUALITY');
         agentRun.steps[qualityIndex].status = STEP_STATUS.RUNNING;
@@ -200,9 +190,8 @@ const startAgentRun = async (req, res) => {
         agentRun.steps[qualityIndex].logs.push('Running quality checks...');
         await agentRun.save();
 
-        let qualityOutput = null;
         try {
-            qualityOutput = performQualityCheck({
+            const qualityOutput = performQualityCheck({
                 supervisorOutput: agentRun.steps[getStepIndex('SUPERVISOR')].output,
                 plannerOutput,
                 priceOutput
@@ -228,64 +217,45 @@ const startAgentRun = async (req, res) => {
             // Mark requirement as COMPLETED
             requirement.agentStatus = 'COMPLETED';
             await requirement.save();
+
+            // 6. AUTO-CREATE QUOTE
+            let quote = null;
+            try {
+                quote = await createQuoteFromAgentRun({ agentRun, requirement });
+                
+                agentRun.quoteId = quote._id;
+                await agentRun.save();
+                
+                requirement.latestQuoteId = quote._id;
+                requirement.status = 'QUOTES_READY';
+                await requirement.save();
+            } catch (quoteErr) {
+                console.error('Quote creation failed:', quoteErr);
+            }
+
         } catch (err) {
-            agentRun.steps[qualityIndex].status = STEP_STATUS.FAILED;
-            agentRun.steps[qualityIndex].endedAt = new Date();
-            agentRun.steps[qualityIndex].error = err.message;
-            agentRun.status = 'FAILED';
-            agentRun.error = `Quality failed: ${err.message}`;
-            await agentRun.save();
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-            return sendError(res, `Quality failed: ${err.message}`, 422);
+            throw new Error(`Quality failed: ${err.message}`);
         }
-
-        // ========================================
-        // 10. AUTO-CREATE QUOTE (Day 9)
-        // ========================================
-        let quote = null;
-        try {
-            quote = await createQuoteFromAgentRun({ agentRun, requirement });
-            
-            // Link quote back to AgentRun and Requirement
-            agentRun.quoteId = quote._id;
-            await agentRun.save();
-            
-            requirement.latestQuoteId = quote._id;
-            requirement.status = 'QUOTES_READY';
-            await requirement.save();
-        } catch (quoteErr) {
-            console.error('Quote creation failed:', quoteErr);
-            // Don't fail the entire run, just log it
-        }
-
-        // 11. Return success - All 5 steps + quote
-        return sendCreated(res, {
-            agentRunId: agentRun._id,
-            requirementId: requirement._id,
-            status: agentRun.status,
-            stepsCompleted: ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE', 'QUALITY'],
-            quoteId: quote?._id || null,
-            finalCost: priceOutput?.finalCost || 0,
-            budgetFit: priceOutput?.budgetFit || false,
-            qualityScore: qualityOutput?.qualityScore || 0,
-        }, 'Agent run completed, quote generated');
 
     } catch (error) {
-        console.error('startAgentRun Error:', error);
+        // Global error handler for the pipeline
+        console.error('Agent Pipeline Error:', error);
 
-        // Cleanup on unexpected error
-        if (agentRun) {
-            agentRun.status = 'FAILED';
-            agentRun.error = error.message;
-            await agentRun.save();
-        }
-        if (requirement && requirement.agentStatus === 'IN_AGENT') {
-            requirement.agentStatus = 'FAILED';
-            await requirement.save();
-        }
+        // Mark current running step as FAILED
+        agentRun.steps.forEach(step => {
+            if (step.status === 'RUNNING') {
+                step.status = 'FAILED';
+                step.endedAt = new Date();
+                step.error = error.message;
+            }
+        });
 
-        return sendError(res, error.message, 500);
+        agentRun.status = 'FAILED';
+        agentRun.error = error.message;
+        await agentRun.save();
+
+        requirement.agentStatus = 'FAILED';
+        await requirement.save();
     }
 };
 
@@ -313,6 +283,7 @@ const getAgentRunById = async (req, res) => {
             finalResult: agentRun.finalResult,
             error: agentRun.error,
             meta: agentRun.meta,
+            quoteId: agentRun.quoteId,
             createdAt: agentRun.createdAt,
             updatedAt: agentRun.updatedAt,
         });
@@ -323,20 +294,20 @@ const getAgentRunById = async (req, res) => {
     }
 };
 
-// @desc    Get latest agent run for a requirement
+// @desc    Get latest run for a requirement
 // @route   GET /api/agent/requirement/:requirementId/latest
 // @access  Private (Agent/Admin)
 const getLatestAgentRunForRequirement = async (req, res) => {
     try {
         const { requirementId } = req.params;
 
-        // 1. Find the requirement
+        // 1. Validate info
         const requirement = await Requirement.findById(requirementId);
         if (!requirement) {
             return sendNotFound(res, 'Requirement not found');
         }
 
-        // 2. Check if lastAgentRunId exists
+        // 2. Check lastAgentRunId
         if (!requirement.lastAgentRunId) {
             return sendSuccess(res, null, 'No agent run found yet');
         }
@@ -358,6 +329,7 @@ const getLatestAgentRunForRequirement = async (req, res) => {
             finalResult: agentRun.finalResult,
             error: agentRun.error,
             meta: agentRun.meta,
+            quoteId: agentRun.quoteId, // Added quoteId
             createdAt: agentRun.createdAt,
             updatedAt: agentRun.updatedAt,
         });

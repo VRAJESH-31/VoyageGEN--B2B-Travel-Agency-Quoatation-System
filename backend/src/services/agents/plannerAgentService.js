@@ -5,12 +5,12 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const buildItineraryPrompt = (params, research) => {
     const hotel = research.hotels?.[0] || { name: 'Standard Hotel', pricePerNight: 5000 };
     
-    return `Generate a travel itinerary as VALID JSON ONLY. No markdown, no explanation.
-
+    return `Generate a PREMIUM, HIGH-END travel itinerary as VALID JSON ONLY. Use evocative, luxury travel language. Include emojis in summary, themes, and activities.
+    
 TRIP DETAILS:
 - Destination: ${params.destination}
 - Duration: ${params.duration} days
-- Type: ${params.tripType}
+- Type: ${params.tripType} (Make it feel special for this type)
 - Start: ${params.startDate}
 - Budget: ₹${params.budget}
 - Guests: ${params.pax.adults} adults, ${params.pax.children} children
@@ -18,7 +18,7 @@ TRIP DETAILS:
 
 Return ONLY this JSON structure:
 {
-  "summary": "Brief trip summary",
+  "summary": "Values-driven, evocative 2-sentence summary of the trip with emojis. e.g. 'A romantic getaway to... 🌹'",
   "selectedHotel": {
     "name": "${hotel.name}",
     "pricePerNight": ${hotel.pricePerNight},
@@ -28,25 +28,25 @@ Return ONLY this JSON structure:
     {
       "dayNumber": 1,
       "date": "YYYY-MM-DD",
-      "theme": "Day theme",
+      "theme": "Day title with emoji. e.g. '🏝️ Welcome to Paradise'",
       "activities": [
-        { "time": "HH:MM", "activity": "Activity name", "cost": 0 }
+        { "time": "HH:MM", "activity": "Descriptive activity name with emoji. e.g. '🌅 Sunset Cocktails at Potato Head'", "cost": 0 }
       ],
       "meals": { "breakfast": "Location", "lunch": "Location", "dinner": "Location" },
       "dailyCost": 0
     }
   ],
   "totalEstimatedCost": 0,
-  "costBreakdown": { "hotel": 0, "activities": 0, "transport": 0, "meals": 0, "misc": 0 },
-  "highlights": ["highlight1", "highlight2"],
-  "notes": ["note1", "note2"]
+  "costBreakdown": { "hotel": 0, "activities": 0, "transport": 0, "meals": 0, "misc": 0 }
 }
 
 RULES:
 1. days array must have exactly ${params.duration} items
 2. Each day must have activities array with 3-5 items
 3. All costs in INR
-4. Output ONLY valid JSON, no backticks or markdown`;
+4. Output ONLY valid JSON, no backticks or markdown
+5. Use 24h format for time in JSON, but make it logical flow
+6. Make the content feel PREMIUM and EXCLUSIVE`;
 };
 
 // Validate itinerary JSON structure

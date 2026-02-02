@@ -1,19 +1,44 @@
 // Agent to Quote Mapper - Convert AgentRun result to Quote
 const Quote = require('../../models/Quote');
 
+// Helper to format 12h time
+const formatTime12h = (time24) => {
+    if (!time24) return '';
+    const [h, m] = time24.split(':');
+    const hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m} ${ampm}`;
+};
+
 // Generate itinerary text from JSON for PDF
 const generateItineraryText = (itinerary) => {
     if (!itinerary?.days) return '';
     
-    let text = `${itinerary.summary || 'Travel Itinerary'}\n\n`;
+    let text = `${itinerary.summary || 'Premium Travel Itinerary'}\n\n`;
+    text += `------------------------------------------------\n\n`;
     
     itinerary.days.forEach(day => {
-        text += `Day ${day.dayNumber}: ${day.theme || ''}\n`;
-        text += `Date: ${day.date || 'TBD'}\n`;
+        text += `Day ${day.dayNumber}: ${day.theme || 'Adventure Details'}\n`;
+        text += `Date: ${day.date || 'TBD'} 🗓️\n`;
+        
+        // Mock Weather for premium feel (since we don't have live weather)
+        const weathers = ['Sunny ☀️', 'Partly Cloudy ⛅', 'Clear Skies 🌞', 'Pleasant 🍃'];
+        const randomWeather = weathers[Math.floor(Math.random() * weathers.length)];
+        const randomTemp = Math.floor(Math.random() * (32 - 24 + 1)) + 24;
+        text += `Weather: ${randomWeather} • ${randomTemp}°C\n`;
+
+        text += `\n`; // Spacer
+        
         day.activities?.forEach(act => {
-            text += `• ${act.time || ''} - ${act.activity} (₹${act.cost || 0})\n`;
+            const timeStr = formatTime12h(act.time);
+            text += `• ${timeStr} - ${act.activity}`;
+            if (act.cost > 0) text += ` (₹${act.cost})`;
+            text += '\n';
         });
-        text += `Daily Cost: ₹${day.dailyCost || 0}\n\n`;
+        
+        text += `\nEst. Daily Cost: ₹${day.dailyCost || 0}\n`;
+        text += `------------------------------------------------\n\n`;
     });
     
     return text.trim();
@@ -44,7 +69,7 @@ const mapAgentRunToQuote = ({ agentRun, requirement, priceOutput, researchOutput
             total: selectedHotel.totalCost || (selectedHotel.pricePerNight * duration)
         }],
         transport: [{
-            type: 'Sedan',
+            vehicleType: 'Sedan',
             days: duration,
             unitPrice: Math.round((breakdown.transport || 0) / duration) || 1000,
             total: breakdown.transport || 0

@@ -179,7 +179,7 @@ const QuoteEditor = () => {
                                 <div className="col-span-2">
                                     <label className="text-xs text-gray-500">Type</label>
                                     <input
-                                        value={item.type}
+                                        value={item.vehicleType}
                                         className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
                                         readOnly
                                     />

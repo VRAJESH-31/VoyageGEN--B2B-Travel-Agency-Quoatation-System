@@ -61,17 +61,28 @@ const RequirementDetails = () => {
     const mapStepsToUI = (steps) => {
         if (!steps || steps.length === 0) return 0;
 
-        // Find the current running step or the last completed step
+        // Backend step names: SUPERVISOR, RESEARCH, PLANNER, PRICE, QUALITY
+        const stepOrder = ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE', 'QUALITY'];
+
+        // Find the current step index based on backend data
         let completedCount = 0;
-        for (const step of steps) {
-            if (step.status === 'DONE') {
-                completedCount++;
-            } else if (step.status === 'RUNNING') {
-                return completedCount; // Currently running step
-            } else if (step.status === 'FAILED') {
-                return completedCount; // Failed at this step
+
+        for (let i = 0; i < stepOrder.length; i++) {
+            const stepName = stepOrder[i];
+            const backendStep = steps.find(s => s.stepName === stepName);
+
+            if (!backendStep) continue;
+
+            if (backendStep.status === 'DONE') {
+                completedCount = i + 1; // Next step should be active
+            } else if (backendStep.status === 'RUNNING') {
+                return i; // Currently running this step
+            } else if (backendStep.status === 'FAILED') {
+                return i; // Failed at this step
             }
         }
+
+        // console.log('Step mapping result:', completedCount, 'from steps:', steps);
         return completedCount;
     };
 
@@ -135,7 +146,7 @@ const RequirementDetails = () => {
     }, [user, requirement, navigate]);
 
     // Start agent run (real API call)
-    const runAgent = useCallback(async () => {
+    const runAgent = useCallback(async (overrideForce = false) => {
         if (agentStatus === 'RUNNING' || !user?.token) return;
 
         // Clear previous polling
@@ -152,8 +163,9 @@ const RequirementDetails = () => {
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
-            // Add forceRun query param if checked
-            const url = forceRerun
+            // Add forceRun query param if checked or overridden
+            const shouldForce = forceRerun || overrideForce;
+            const url = shouldForce
                 ? `${import.meta.env.VITE_API_URL}/api/agent/run/${id}?forceRun=true`
                 : `${import.meta.env.VITE_API_URL}/api/agent/run/${id}`;
 
@@ -424,16 +436,23 @@ const RequirementDetails = () => {
                     )}
                 </div>
 
-                {/* Run Agent Button - Disable while RUNNING */}
-                {(agentStatus === 'IDLE' || agentStatus === 'ERROR') && (
+                {/* Run Agent Button - Show for IDLE, ERROR, or DONE (to regenerate) */}
+                {(agentStatus === 'IDLE' || agentStatus === 'ERROR' || agentStatus === 'DONE') && (
                     <div className="mt-4">
                         <button
-                            onClick={runAgent}
+                            onClick={() => {
+                                const isRegeneration = agentStatus === 'DONE';
+                                runAgent(isRegeneration);
+                            }}
                             disabled={agentStatus === 'RUNNING'}
                             className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-emerald-500 disabled:hover:to-teal-500"
                         >
                             <FaBolt className="text-lg" />
-                            {agentStatus === 'ERROR' ? (forceRerun ? 'Force Rerun Agent' : 'Retry AI Agent') : 'Run AI Agent'}
+                            {agentStatus === 'ERROR'
+                                ? (forceRerun ? 'Force Rerun Agent' : 'Retry AI Agent')
+                                : agentStatus === 'DONE'
+                                    ? 'Regenerate Quote (Run Again)'
+                                    : 'Run AI Agent'}
                         </button>
 
                         {/* Force rerun checkbox - only show on 409 error */}
@@ -467,7 +486,14 @@ const RequirementDetails = () => {
                 {/* Result Card - Show when DONE */}
                 <AnimatePresence>
                     {agentStatus === 'DONE' && agentResult && (
-                        <AgentResultCard result={agentResult} />
+                        <AgentResultCard
+                            result={agentResult}
+                            onOpenQuote={() => {
+                                if (agentResult.quoteId) {
+                                    navigate(`/agent/quote/${agentResult.quoteId}`);
+                                }
+                            }}
+                        />
                     )}
                 </AnimatePresence>
             </motion.div>

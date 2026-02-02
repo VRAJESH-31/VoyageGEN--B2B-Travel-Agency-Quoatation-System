@@ -10,10 +10,11 @@ const startAgentRunSchema = z.object({
         requirementId: z.string().regex(objectIdRegex, 'Invalid requirementId format')
     }),
     body: z.object({
-        forceRun: z.boolean().optional().default(false),
         debug: z.boolean().optional().default(false)
     }).optional().default({}),
-    query: z.object({}).optional()
+    query: z.object({
+        forceRun: z.string().optional().transform(val => val === 'true')
+    }).optional()
 });
 
 // Get agent run by ID validation

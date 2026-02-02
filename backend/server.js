@@ -22,8 +22,11 @@ connectDB();
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 
-// Rate Limiting
-app.use('/api', generalLimiter);
+// Rate Limiting (exclude /api/agent which has its own limiter)
+app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/agent')) return next();
+    generalLimiter(req, res, next);
+});
 
 // Health Check
 app.get('/', (req, res) => {

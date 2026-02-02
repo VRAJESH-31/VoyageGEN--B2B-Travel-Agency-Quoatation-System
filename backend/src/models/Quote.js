@@ -28,7 +28,7 @@ const quoteSchema = new mongoose.Schema({
             total: Number,
         }],
         transport: [{
-            type: String, // e.g., Sedan
+            vehicleType: { type: String }, // e.g., Sedan - renamed from 'type' to avoid Mongoose conflict
             days: Number,
             unitPrice: Number,
             total: Number,
