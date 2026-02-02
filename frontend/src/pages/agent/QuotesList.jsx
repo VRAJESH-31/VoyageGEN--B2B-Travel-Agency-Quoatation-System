@@ -16,7 +16,8 @@ const QuotesList = () => {
             try {
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
                 const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/quotes`, config);
-                setQuotes(res.data);
+                // Handle paginated response format
+                setQuotes(res.data.data || res.data);
             } catch (error) {
                 console.error('Error fetching quotes:', error);
             } finally {
@@ -438,7 +439,7 @@ const QuotesList = () => {
                                 ${quote.sections.transport.map(transport => `
                                 <tr class="${transport.source === 'AI' ? 'ai-row' : ''}">
                                     <td class="item-name">
-                                        ${transport.type}
+                                        ${transport.vehicleType}
                                         ${transport.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
                                     </td>
                                     <td>${transport.days}</td>
@@ -475,35 +476,16 @@ const QuotesList = () => {
                         </div>
                         ` : ''}
 
-                        ${quote.aiItinerary && quote.aiItinerary.days && quote.aiItinerary.days.length > 0 ? `
+                        ${quote.itineraryText ? `
                         <div class="section">
                             <h2 class="section-title">
                                 <span class="section-icon">✨</span>
-                                Suggested Itinerary
-                                <span class="ai-badge" style="font-size: 14px; margin-left: 10px;">AI Curated</span>
+                                AI Generated Itinerary
                             </h2>
-                            <div style="background: #18181b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden;">
-                                ${quote.aiItinerary.days.map(day => `
-                                <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                        <h3 style="color: #10b981; font-family: 'Playfair Display', serif; font-size: 18px;">${day.day}</h3>
-                                        <span style="background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 15px; font-size: 12px; color: #a1a1aa;">
-                                            🌤️ ${day.weather}
-                                        </span>
-                                    </div>
-                                    <ul style="list-style: none; margin-left: 0; padding-left: 0;">
-                                        ${day.activities.map(act => `
-                                            <li style="margin-bottom: 8px; color: #e4e4e7; font-size: 14px; display: flex; align-items: start; gap: 8px;">
-                                                <span style="color: #10b981; margin-top: 4px;">•</span>
-                                                ${act}
-                                            </li>
-                                        `).join('')}
-                                    </ul>
-                                    <div style="margin-top: 10px; text-align: right; font-size: 13px; color: #71717a;">
-                                        Approx. Cost: <span style="color: #e4e4e7; font-weight: 600;">₹${day.cost?.toLocaleString()}</span>
-                                    </div>
-                                </div>
-                                `).join('')}
+                            <div style="background: #18181b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
+                                <pre style="font-family: 'Inter', sans-serif; white-space: pre-wrap; line-height: 1.6; color: #e4e4e7; font-size: 14px; margin: 0;">
+${quote.itineraryText}
+                                </pre>
                             </div>
                         </div>
                         ` : ''}
@@ -645,11 +627,21 @@ const QuotesList = () => {
                     {quotes.map(quote => (
                         <div
                             key={quote._id}
-                            className="bg-zinc-900 border border-white/10 rounded-xl p-6 hover:border-emerald-500/50 transition-all"
+                            className={`bg-zinc-900 border rounded-xl p-6 transition-all ${quote.agentRunId
+                                ? 'border-purple-500/30 hover:border-purple-500/60 bg-gradient-to-r from-purple-500/5 to-transparent'
+                                : 'border-white/10 hover:border-emerald-500/50'
+                                }`}
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="text-xl font-bold mb-1">{quote.requirementId?.contactInfo?.name || 'Traveler'}</h3>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="text-xl font-bold">{quote.requirementId?.contactInfo?.name || 'Traveler'}</h3>
+                                        {quote.agentRunId && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                                                AI Generated
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-gray-400">
                                         Quote #{quote._id.slice(-6)} • {quote.requirementId?.destination || 'N/A'}
                                     </p>

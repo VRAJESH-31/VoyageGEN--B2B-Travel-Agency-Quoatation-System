@@ -76,48 +76,37 @@ const QuoteEditor = () => {
                 </div>
             </div>
 
-            {/* AI Itinerary Section */}
-            {quote.aiItinerary && (
-                <div className="bg-zinc-900 border border-white/10 p-6 rounded-xl mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                        <span className="text-2xl">✨</span>
-                        <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                            AI Curated Itinerary
-                        </h3>
-                    </div>
-
-                    <div className="bg-black/30 rounded-lg p-4 mb-6 border border-white/5">
-                        <p className="text-gray-300 italic leading-relaxed">
-                            "{quote.aiItinerary.summary}"
-                        </p>
-                    </div>
-
-                    <div className="space-y-4">
-                        {quote.aiItinerary.days?.map((day, idx) => (
-                            <div key={idx} className="bg-black/20 rounded-lg p-4 border border-white/5 hover:bg-black/40 transition-colors">
-                                <div className="flex justify-between items-start mb-3">
-                                    <h4 className="font-bold text-emerald-400">{day.day}</h4>
-                                    <span className="text-xs bg-white/10 px-2 py-1 rounded text-gray-400">
-                                        {day.weather}
-                                    </span>
-                                </div>
-                                <div className="space-y-2">
-                                    {day.activities?.map((activity, actIdx) => (
-                                        <div key={actIdx} className="flex items-start gap-2 text-sm text-gray-300">
-                                            <span className="text-purple-400 mt-1">•</span>
-                                            <span>{activity}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                                {day.cost > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-white/5 text-right">
-                                        <span className="text-xs text-gray-500">Est. Cost: </span>
-                                        <span className="text-sm font-mono text-emerald-400">₹{day.cost.toLocaleString()}</span>
-                                    </div>
-                                )}
+            {/* AI Itinerary Section - Enhanced UI */}
+            {quote.itineraryText && (
+                <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30 p-8 rounded-2xl mb-8 shadow-2xl">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-xl shadow-lg">
+                                <span className="text-3xl">✨</span>
                             </div>
-                        ))}
+                            <div>
+                                <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 bg-clip-text text-transparent">
+                                    AI-Generated Itinerary
+                                </h3>
+                                <p className="text-sm text-gray-400 mt-1">Powered by Gemini 2.5 Flash</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 bg-purple-500/10 px-4 py-2 rounded-full border border-purple-500/30">
+                            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                            <span className="text-xs text-purple-300 font-medium">AI Curated</span>
+                        </div>
                     </div>
+
+                    <div className="bg-black/40 backdrop-blur-sm rounded-xl p-6 border border-white/5 shadow-inner">
+                        <div className="prose prose-invert max-w-none">
+                            <pre className="text-gray-200 leading-loose whitespace-pre-wrap font-sans text-base tracking-wide">
+                                {quote.itineraryText}
+                            </pre>
+                        </div>
+                    </div>
+
+                    {/* Decorative gradient line */}
+                    <div className="mt-6 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent rounded-full opacity-50"></div>
                 </div>
             )}
 
@@ -190,7 +179,7 @@ const QuoteEditor = () => {
                                 <div className="col-span-2">
                                     <label className="text-xs text-gray-500">Type</label>
                                     <input
-                                        value={item.type}
+                                        value={item.vehicleType}
                                         className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
                                         readOnly
                                     />

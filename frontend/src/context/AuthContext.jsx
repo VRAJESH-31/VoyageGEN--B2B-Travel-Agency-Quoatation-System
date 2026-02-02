@@ -1,9 +1,7 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext, createContext } from 'react';
+import { authApi } from '../api/auth.api';
 
-const AuthContext = createContext();
-
-export const useAuth = () => useContext(AuthContext);
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -18,38 +16,33 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        try {
-            const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
-                email,
-                password,
-            });
-            setUser(data);
-            localStorage.setItem('userInfo', JSON.stringify(data));
-            return data;
-        } catch (error) {
-            throw error.response?.data?.message || 'Login failed';
-        }
-    };
-
-    const logout = () => {
-        localStorage.removeItem('userInfo');
-        setUser(null);
+        const data = await authApi.login({ email, password });
+        setUser(data);
+        return data;
     };
 
     const register = async (userData) => {
-        try {
-            const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/signup`, userData);
-            setUser(data);
-            localStorage.setItem('userInfo', JSON.stringify(data));
-            return data;
-        } catch (error) {
-            throw error.response?.data?.message || 'Registration failed';
-        }
+        const data = await authApi.register(userData);
+        setUser(data);
+        return data;
+    };
+
+    const logout = () => {
+        authApi.logout();
+        setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, register, loading }}>
+        <AuthContext.Provider value={{ user, login, register, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );
+};
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 };

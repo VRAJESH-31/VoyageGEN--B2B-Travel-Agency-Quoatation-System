@@ -1,175 +1,108 @@
-<div align="center">
+# VoyageGen - B2B Travel Quotation System 🚀
 
-  <img src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop" alt="VoyageGen Banner" width="100%" style="border-radius: 10px; object-fit: cover; height: 300px;">
-
-  <h1>✈️ VoyageGen</h1>
-  
-  <h3>The B2B Travel Quotation Operating System</h3>
-
-  <p>
-    <strong>Where smart planning meets unforgettable journeys.</strong>
-  </p>
-
-  <p align="center">
-    <img src="https://img.shields.io/badge/Status-MVP%20Complete-success?style=for-the-badge&logo=git" alt="Status">
-    <img src="https://img.shields.io/badge/Hackathon-Sentiment_AI-blueviolet?style=for-the-badge" alt="Hackathon">
-    <img src="https://img.shields.io/badge/Stack-MERN-blue?style=for-the-badge" alt="Stack">
-    <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License">
-  </p>
-
-  [<kbd> <br> View Demo <br> </kbd>](http://localhost:5173) &nbsp; &nbsp; [<kbd> <br> Report Bug <br> </kbd>](https://github.com/vrajesh-31/voyagegen/issues)
-</div>
-
-<br />
+VoyageGen is an intelligent, AI-powered travel quotation operating system designed to streamline the workflow of travel agents and partners. It features a modern React frontend and a robust Node.js/Express backend.
 
 ---
 
-## 🚩 The Problem Statement
-The global B2B travel ecosystem is currently running on fragmented, outdated workflows. As highlighted in the **Sentiment AI Problem Statement**, travel agents face critical bottlenecks:
+## 🏗️ Project Architecture (Refactored)
 
-| 🚫 The Current Chaos | ✅ The VoyageGen Solution |
-| :--- | :--- |
-| **Fragmented Tools** (Excel, WhatsApp, Email) | **Unified Dashboard** for requirements & quotes |
-| **Manual Costing Errors** eating into profits | **Auto-Calculated Pricing** with margin control |
-| **Slow Turnaround** waiting for partner rates | **Instant Inventory** from verified partners |
-| **Unprofessional, Messy PDFs** | **High-Definition, Branded Quotations** |
+The project follows a clean, modular architecture:
 
-> *"A digital quotation builder is needed to consolidate requirements, automate costing, enable collaboration, and deliver professional quotations instantly."*
+### Backend Structure (`backend/`)
 
----
+```
+backend/
+├── src/
+│   ├── config/       # Configuration (DB, CORS, Rate Limits)
+│   ├── controllers/  # Request handlers
+│   ├── middleware/   # Custom middleware (Auth, Error)
+│   ├── models/       # Mongoose schemas
+│   ├── routes/       # API route definitions
+│   ├── services/     # Business logic layer
+│   ├── utils/        # Utilities (Logger, Response)
+│   └── validators/   # Input validation schemas
+├── scripts/          # Database seeders & utility scripts
+└── server.js         # Entry point
+```
 
-## ✨ Key Features
+### Frontend Structure (`frontend/`)
 
-### 🌍 For The Traveler (Experience)
-* ** immersive Landing Page:** A high-end UI featuring **GSAP** animations, **Lenis** smooth scrolling, and **Vanta.js** 3D cloud effects to inspire wanderlust.
-* **Smart Journey Planner:** An intuitive multi-step form to capture travel intent (Destination, Budget, Pax, Trip Type).
-* **Curated Showcases:** Interactive destination galleries and testimonial marquees.
-
-### 👔 For The Agent (Productivity)
-* **Kanban Dashboard:** Visualize new leads and track quotation status (New -> In Progress -> Quotes Ready).
-* **AI-Powered Partner Matching:** Automatically filters Hotels and Transport providers based on the traveler's specific budget and star rating preferences.
-* **Dynamic Quote Editor:** * Drag-and-drop itinerary building.
-    * Real-time cost breakdown (Net Cost vs. Final Price).
-    * Adjustable profit margins.
-* **Instant PDF Generation:** One-click generation of a clean, shareable PDF quotation.
-
-### 🤝 For The Partner (Supply)
-* **Dedicated Portal:** Login for Hotel owners, DMCs, and Cab providers.
-* **Inventory Management:** Add/Edit inventory items (Room types, Vehicle types, Activities) with pricing and images.
-* **Profile Customization:** Set specializations (e.g., "Honeymoon", "Luxury") to get matched with the right high-value leads.
+```
+frontend/src/
+├── api/              # Centralized API layer (Axios)
+├── components/
+│   ├── common/       # Shared UI components (Header, Footer)
+│   └── features/     # Feature-specific components
+├── constants/        # Global constants & routes
+├── context/          # React Context (Auth)
+├── hooks/            # Custom Hooks (useAuth, useApi)
+├── layouts/          # Page layouts (Agent, Partner)
+├── pages/            # Application pages
+├── styles/           # Global styles
+└── utils/            # Helper functions
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
-The project is built using the **MERN Stack** with a heavy focus on modern frontend performance and design.
-
-### **Frontend**
-| Tech | Usage |
-| :--- | :--- |
-| ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black) | UI Library (Vite) |
-| ![Tailwind](https://img.shields.io/badge/-Tailwind-38B2AC?logo=tailwind-css&logoColor=white) | Styling Engine |
-| **GSAP** | Advanced Animations & ScrollTriggers |
-| **Framer Motion** | Component-level micro-interactions |
-| **Vanta.js** | 3D WebGL Cloud Backgrounds |
-| **Lenis** | Luxury Smooth Scrolling |
-
-### **Backend**
-| Tech | Usage |
-| :--- | :--- |
-| ![Node](https://img.shields.io/badge/-Node.js-339933?logo=node.js&logoColor=white) | Runtime Environment |
-| ![Express](https://img.shields.io/badge/-Express-000000?logo=express&logoColor=white) | API Framework |
-| ![MongoDB](https://img.shields.io/badge/-MongoDB-47A248?logo=mongodb&logoColor=white) | NoSQL Database (Mongoose ODM) |
-| **JWT** | Secure Authentication |
+- **Frontend:** React + Vite, Tailwind CSS, Framer Motion, GSAP
+- **Backend:** Node.js, Express, MongoDB
+- **AI Integration:** Google Gemini 2.5 Flash
+- **External APIs:** SerpApi (Google Hotels/Flights)
 
 ---
 
-## 🚀 Installation & Setup
-
-Follow these steps to run **VoyageGen** locally on your machine.
+## 🚀 Getting Started
 
 ### Prerequisites
-* Node.js (v16+)
-* MongoDB (Local or Atlas)
 
-### 1. Clone the Repository
-```bash
-git clone [https://github.com/vrajesh-31/voyagegen.git](https://github.com/vrajesh-31/voyagegen.git)
-cd voyagegen
-````
+- Node.js (v18+)
+- MongoDB (Local or Atlas)
+- API Keys (Google Gemini, SerpApi)
 
-### 2\. Backend Configuration
+### 1. Backend Setup
 
 ```bash
 cd backend
 npm install
-
-# Create a .env file
-echo "PORT=5000" > .env
-echo "MONGO_URI=your_mongodb_connection_string" >> .env
-echo "JWT_SECRET=your_super_secret_key" >> .env
-
-# Seed Database with Dummy Partners (Important for Demo!)
-node seedPartners.js
-
-# Start Server
-npm start
-```
-
-*Backend runs on: `http://localhost:5000`*
-
-### 3\. Frontend Configuration
-
-```bash
-# Open a new terminal
-cd frontend
-npm install
-
-# Create a .env file
-echo "VITE_API_URL=http://localhost:5000" > .env
-
-# Start Client
+cp .env.example .env
+# Fill in your .env values
 npm run dev
 ```
 
-*Frontend runs on: `http://localhost:5173`*
-
------
-
-## 📂 Project Structure
+### 2. Frontend Setup
 
 ```bash
-VoyageGEN/
-├── backend/
-│   ├── controllers/    # Logic for Auth, Partners, Quotes
-│   ├── models/         # MongoDB Schemas (User, PartnerProfile, Quote)
-│   ├── routes/         # API Endpoints
-│   └── server.js       # Entry Point
-│
-└── frontend/
-    ├── src/
-    │   ├── components/ # Hero, BentoGrid, Navbar
-    │   ├── context/    # AuthContext Provider
-    │   ├── pages/      # Agent, Partner, & User Views
-    │   └── App.jsx     # Route Definitions
+cd frontend
+npm install
+cp .env.example .env
+# Fill in your .env values (VITE_API_URL)
+npm run dev
 ```
 
------
+### 3. Database Seeding (Optional)
 
+```bash
+cd backend
+node scripts/seed.js
+```
 
-## 🔮 Future Roadmap
+---
 
-  - [ ] **AI Itinerary Generation:** Integration with LLMs to auto-write day-wise plans.
-  - [ ] **WhatsApp Integration:** Send quote links directly to client WhatsApp numbers.
-  - [ ] **Payment Gateway:** Integrated Stripe/Razorpay for booking fee collection.
-  - [ ] **Real-time Chat:** Socket.io chat between Agents and Partners.
+## 🔒 Security Features
 
------
+- **JWT Authentication:** Secure stateless auth
+- **Rate Limiting:** Protection against abuse
+- **CORS Protection:** Restricted to frontend origin
+- **Input Validation:** Backend validation layer (In Progress)
 
+---
 
-**Built for the Sentiment AI Hackathon**
+## 🤝 Contributing
 
-Made with ❤️ by **Vrajesh**
-
-[⭐ Star this repo](https://www.google.com/search?q=https://github.com/vrajesh-31/voyagegen)
-
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
