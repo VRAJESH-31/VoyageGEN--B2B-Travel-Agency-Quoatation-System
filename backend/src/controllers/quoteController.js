@@ -261,20 +261,36 @@ const generateQuotes = async (req, res) => {
     }
 };
 
-// @desc    Get all quotes for agent
-// @route   GET /api/quotes
+// @desc    Get all quotes for agent with pagination
+// @route   GET /api/quotes?page=1&limit=10
 // @access  Private (Agent)
 const getQuotes = async (req, res) => {
     try {
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+        const skip = (page - 1) * limit;
+
+        const total = await Quote.countDocuments({});
         const quotes = await Quote.find({})
             .populate('requirementId', 'destination tripType budget startDate duration')
             .populate('agentId', 'name email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
-        res.json(quotes);
+        res.json({
+            success: true,
+            data: quotes,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (error) {
         console.error('Error fetching quotes:', error);
-        res.status(500).json({ message: 'Server Error' });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 

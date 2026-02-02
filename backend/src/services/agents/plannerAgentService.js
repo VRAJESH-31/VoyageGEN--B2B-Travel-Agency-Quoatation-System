@@ -90,6 +90,28 @@ const extractJson = (text) => {
     return JSON.parse(cleaned);
 };
 
+// Timeout helper (30 seconds)
+const GEMINI_TIMEOUT_MS = 30000;
+
+const withTimeout = (promise, timeoutMs = GEMINI_TIMEOUT_MS) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Gemini request timeout')), timeoutMs)
+        )
+    ]);
+};
+
+// Check if error is retryable
+const isRetryableError = (error) => {
+    const msg = error.message?.toLowerCase() || '';
+    return msg.includes('timeout') || 
+           msg.includes('network') || 
+           msg.includes('json') ||
+           msg.includes('econnreset') ||
+           msg.includes('socket');
+};
+
 // Main planner function
 const generateItineraryJSON = async (normalizedParams, researchOutput) => {
     if (!process.env.GEMINI_API_KEY) {
@@ -103,12 +125,14 @@ const generateItineraryJSON = async (normalizedParams, researchOutput) => {
     let itinerary = null;
     let attempts = 0;
     const maxAttempts = 2;
+    let lastError = null;
     
     while (attempts < maxAttempts) {
         attempts++;
         
         try {
-            const result = await model.generateContent(prompt);
+            // Wrap Gemini call with timeout
+            const result = await withTimeout(model.generateContent(prompt));
             const text = result.response.text();
             
             itinerary = extractJson(text);
@@ -118,7 +142,7 @@ const generateItineraryJSON = async (normalizedParams, researchOutput) => {
                 return { itinerary, warnings: [], attempts };
             }
             
-            // Retry with fix prompt
+            // Retry with fix prompt on validation failure
             if (attempts < maxAttempts) {
                 console.log('Validation failed, retrying:', validation.errors);
             } else {
@@ -130,14 +154,36 @@ const generateItineraryJSON = async (normalizedParams, researchOutput) => {
                 };
             }
             
-        } catch (parseError) {
+        } catch (error) {
+            lastError = error;
+            console.error(`Gemini attempt ${attempts} failed:`, error.message);
+            
+            // Retry only on retryable errors
+            if (attempts < maxAttempts && isRetryableError(error)) {
+                console.log('Retrying due to retryable error...');
+                continue;
+            }
+            
+            // Non-retryable or max attempts reached
             if (attempts >= maxAttempts) {
-                throw new Error(`JSON parse failed after ${attempts} attempts: ${parseError.message}`);
+                return {
+                    itinerary: null,
+                    error: `Gemini failed after ${attempts} attempts: ${error.message}`,
+                    warnings: ['AI generation failed'],
+                    attempts,
+                    failed: true
+                };
             }
         }
     }
     
-    throw new Error('Failed to generate valid itinerary');
+    return {
+        itinerary: null,
+        error: lastError?.message || 'Failed to generate valid itinerary',
+        warnings: ['AI generation failed'],
+        attempts,
+        failed: true
+    };
 };
 
 module.exports = {

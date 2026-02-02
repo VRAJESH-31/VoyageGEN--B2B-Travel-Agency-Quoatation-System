@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Import configs
-const { connectDB, corsOptions, generalLimiter, authLimiter } = require('./src/config');
+const { connectDB, corsOptions, generalLimiter, authLimiter, agentLimiter } = require('./src/config');
 
 // Import middleware
 const { errorHandler, notFound } = require('./src/middleware/error.middleware');
@@ -39,7 +39,7 @@ app.use('/api/auth', authLimiter, require('./src/routes/authRoutes'));
 app.use('/api/requirements', require('./src/routes/requirementRoutes'));
 app.use('/api/partners', require('./src/routes/partnerRoutes'));
 app.use('/api/quotes', require('./src/routes/quoteRoutes'));
-app.use('/api/agent', require('./src/routes/agentRoutes'));
+app.use('/api/agent', agentLimiter, require('./src/routes/agentRoutes'));
 
 // Error Handling
 app.use(notFound);
