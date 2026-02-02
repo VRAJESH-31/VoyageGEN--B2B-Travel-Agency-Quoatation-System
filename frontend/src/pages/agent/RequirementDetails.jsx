@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { FaFilter, FaHotel, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave } from 'react-icons/fa';
+import { FaFilter, FaHotel, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave, FaBolt } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
+import AgentProgress, { AGENT_STEPS } from '../../components/agent/AgentProgress';
+import AgentResultCard from '../../components/agent/AgentResultCard';
 
 const RequirementDetails = () => {
     const { id } = useParams();
@@ -31,6 +33,59 @@ const RequirementDetails = () => {
         hotelStar: 4,
         tripType: '',
     });
+
+    // Agent UI State (UI simulation only - no API)
+    const [agentStatus, setAgentStatus] = useState('IDLE'); // IDLE | RUNNING | DONE | ERROR
+    const [agentStep, setAgentStep] = useState(0);
+    const [agentResult, setAgentResult] = useState(null);
+    const [agentError, setAgentError] = useState(null);
+    const timeoutRefs = useRef([]);
+
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            timeoutRefs.current.forEach(id => clearTimeout(id));
+        };
+    }, []);
+
+    // Simulate agent progress (UI only)
+    const runAgentSimulation = useCallback(() => {
+        if (agentStatus === 'RUNNING') return;
+
+        // Clear previous timeouts
+        timeoutRefs.current.forEach(id => clearTimeout(id));
+        timeoutRefs.current = [];
+
+        setAgentStatus('RUNNING');
+        setAgentStep(0);
+        setAgentResult(null);
+        setAgentError(null);
+
+        const stepDelays = [800, 1200, 1500, 1000, 800];
+        let currentStep = 0;
+
+        const advanceStep = () => {
+            currentStep++;
+            setAgentStep(currentStep);
+
+            if (currentStep < AGENT_STEPS.length) {
+                const tid = setTimeout(advanceStep, stepDelays[currentStep]);
+                timeoutRefs.current.push(tid);
+            } else {
+                setAgentStatus('DONE');
+                setAgentResult({
+                    summary: `${requirement?.duration || 5}-day ${requirement?.tripType || 'Trip'} in ${requirement?.destination || 'Destination'}`,
+                    finalCost: Math.round((requirement?.budget || 100000) * 0.92),
+                    budget: requirement?.budget || 100000,
+                    budgetFit: true,
+                    qualityScore: 85,
+                });
+            }
+        };
+
+        const tid = setTimeout(advanceStep, stepDelays[0]);
+        timeoutRefs.current.push(tid);
+    }, [agentStatus, requirement]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -190,6 +245,72 @@ const RequirementDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AI Travel Planner Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8 hover:border-emerald-500/30 transition-colors"
+            >
+                <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center">
+                            <FaBolt className="text-black text-xl" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-serif font-bold text-white">AI Travel Planner</h2>
+                            <p className="text-sm text-gray-400">Generate full quote automatically</p>
+                        </div>
+                    </div>
+                    {agentStatus === 'IDLE' && (
+                        <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-1 rounded border border-white/10 uppercase tracking-wider">
+                            Ready
+                        </span>
+                    )}
+                    {agentStatus === 'RUNNING' && (
+                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-1 rounded border border-amber-500/20 uppercase tracking-wider animate-pulse">
+                            Processing
+                        </span>
+                    )}
+                    {agentStatus === 'DONE' && (
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20 uppercase tracking-wider">
+                            Complete
+                        </span>
+                    )}
+                </div>
+
+                {/* Run Agent Button - Disable while RUNNING */}
+                {(agentStatus === 'IDLE' || agentStatus === 'ERROR') && (
+                    <div className="mt-4">
+                        <button
+                            onClick={runAgentSimulation}
+                            disabled={agentStatus === 'RUNNING'}
+                            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-emerald-500 disabled:hover:to-teal-500"
+                        >
+                            <FaBolt className="text-lg" />
+                            {agentStatus === 'ERROR' ? 'Retry AI Agent' : 'Run AI Agent'}
+                        </button>
+                        <p className="text-xs text-gray-500 text-center mt-3">
+                            This will automatically build itinerary, pricing and final quote.
+                        </p>
+                    </div>
+                )}
+
+                {/* Progress Tracker - Show when RUNNING or ERROR */}
+                <AnimatePresence>
+                    {(agentStatus === 'RUNNING' || agentStatus === 'ERROR') && (
+                        <AgentProgress status={agentStatus} currentStep={agentStep} error={agentError} />
+                    )}
+                </AnimatePresence>
+
+                {/* Result Card - Show when DONE */}
+                <AnimatePresence>
+                    {agentStatus === 'DONE' && agentResult && (
+                        <AgentResultCard result={agentResult} />
+                    )}
+                </AnimatePresence>
+            </motion.div>
 
             {/* Verified Partners */}
             <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8">
