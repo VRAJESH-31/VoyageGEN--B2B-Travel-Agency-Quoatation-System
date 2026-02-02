@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, useLocation } from 'react-router-dom';
 import Lenis from 'lenis';
 import { AuthProvider } from './context/AuthContext';
-import AnimatedRoutes from './components/AnimatedRoutes';
+import AnimatedRoutes from './components/common/AnimatedRoutes';
 
 // Component to handle Lenis initialization inside Router
 const LenisWrapper = ({ children }) => {

@@ -1,10 +1,10 @@
 import React from 'react';
-import Header from '../components/Header';
-import Hero from '../components/Hero';
-import Footer from '../components/Footer';
-import DestinationGallery from '../components/DestinationGallery';
-import BentoGrid from '../components/BentoGrid';
-import TestimonialMarquee from '../components/TestimonialMarquee';
+import Header from '../components/common/Header';
+import Hero from '../components/features/Hero';
+import Footer from '../components/common/Footer';
+import DestinationGallery from '../components/features/DestinationGallery';
+import BentoGrid from '../components/features/BentoGrid';
+import TestimonialMarquee from '../components/features/TestimonialMarquee';
 
 const LandingPage = () => {
     return (
