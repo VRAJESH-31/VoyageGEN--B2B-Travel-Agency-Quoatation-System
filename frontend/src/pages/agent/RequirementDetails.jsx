@@ -40,13 +40,19 @@ const RequirementDetails = () => {
     const [agentResult, setAgentResult] = useState(null);
     const [agentError, setAgentError] = useState(null);
     const [agentRunId, setAgentRunId] = useState(null);
+    const [forceRerun, setForceRerun] = useState(false);
+    const [is409Error, setIs409Error] = useState(false);
     const pollingRef = useRef(null);
+    const redirectTimeoutRef = useRef(null);
 
-    // Cleanup polling on unmount
+    // Cleanup polling and redirect timeout on unmount
     useEffect(() => {
         return () => {
             if (pollingRef.current) {
                 clearInterval(pollingRef.current);
+            }
+            if (redirectTimeoutRef.current) {
+                clearTimeout(redirectTimeoutRef.current);
             }
         };
     }, []);
@@ -95,6 +101,7 @@ const RequirementDetails = () => {
                 // Extract result from run
                 const priceStep = run.steps?.find(s => s.stepName === 'PRICE');
                 const qualityStep = run.steps?.find(s => s.stepName === 'QUALITY');
+                const quoteId = run.quoteId || null;
 
                 setAgentStatus('DONE');
                 setAgentResult({
@@ -103,8 +110,15 @@ const RequirementDetails = () => {
                     budget: requirement?.budget || 100000,
                     budgetFit: priceStep?.output?.budgetFit ?? true,
                     qualityScore: qualityStep?.output?.qualityScore || 0,
-                    quoteId: run.quoteId || null,
+                    quoteId,
                 });
+
+                // Auto-redirect to quote after 2 seconds
+                if (quoteId) {
+                    redirectTimeoutRef.current = setTimeout(() => {
+                        navigate(`/agent/quote/${quoteId}`);
+                    }, 2000);
+                }
             } else if (run.status === 'FAILED') {
                 // Stop polling on failure
                 if (pollingRef.current) {
@@ -118,7 +132,7 @@ const RequirementDetails = () => {
             console.error('Polling error:', err);
             // Don't stop polling on transient errors
         }
-    }, [user, requirement]);
+    }, [user, requirement, navigate]);
 
     // Start agent run (real API call)
     const runAgent = useCallback(async () => {
@@ -134,17 +148,20 @@ const RequirementDetails = () => {
         setAgentStep(0);
         setAgentResult(null);
         setAgentError(null);
+        setIs409Error(false);
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
-            const res = await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/agent/run/${id}`,
-                {},
-                config
-            );
+            // Add forceRun query param if checked
+            const url = forceRerun
+                ? `${import.meta.env.VITE_API_URL}/api/agent/run/${id}?forceRun=true`
+                : `${import.meta.env.VITE_API_URL}/api/agent/run/${id}`;
+
+            const res = await axios.post(url, {}, config);
 
             const runId = res.data?.data?.agentRunId || res.data?.agentRunId;
             setAgentRunId(runId);
+            setForceRerun(false); // Reset checkbox after successful start
 
             // Start polling every 3 seconds
             pollingRef.current = setInterval(() => {
@@ -159,20 +176,21 @@ const RequirementDetails = () => {
             const message = err.response?.data?.message || err.message;
 
             if (status === 409) {
-                // Duplicate run - show friendly message
-                setAgentError('Agent run already in progress. Please wait or force rerun.');
+                // Duplicate run - show friendly message with force rerun option
+                setAgentError('Agent run already in progress.');
+                setIs409Error(true);
                 setAgentStatus('ERROR');
             } else {
                 setAgentError(message || 'Failed to start agent');
                 setAgentStatus('ERROR');
             }
         }
-    }, [agentStatus, user, id, pollAgentRun]);
+    }, [agentStatus, user, id, forceRerun, pollAgentRun]);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const config = { headers: { Authorization: `Bearer ${user.token} ` } };
+                const config = { headers: { Authorization: `Bearer ${user.token}` } };
 
                 // Fetch Requirement
                 const reqRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements/${id}`, config);
@@ -198,6 +216,50 @@ const RequirementDetails = () => {
                     adults: reqRes.data.pax.adults,
                     hotelStar: reqRes.data.hotelStar,
                 }, config);
+
+                // Auto-resume: Check for latest agent run
+                try {
+                    const latestRes = await axios.get(
+                        `${import.meta.env.VITE_API_URL}/api/agent/requirement/${id}/latest`,
+                        config
+                    );
+                    const latestRun = latestRes.data?.data || latestRes.data;
+
+                    if (latestRun && latestRun._id) {
+                        setAgentRunId(latestRun._id);
+
+                        if (latestRun.status === 'RUNNING') {
+                            // Resume polling
+                            setAgentStatus('RUNNING');
+                            setAgentStep(mapStepsToUI(latestRun.steps));
+                            pollingRef.current = setInterval(() => {
+                                pollAgentRun(latestRun._id);
+                            }, 3000);
+                        } else if (latestRun.status === 'DONE') {
+                            // Show result immediately
+                            const priceStep = latestRun.steps?.find(s => s.stepName === 'PRICE');
+                            const qualityStep = latestRun.steps?.find(s => s.stepName === 'QUALITY');
+                            setAgentStatus('DONE');
+                            setAgentStep(5);
+                            setAgentResult({
+                                summary: `${reqRes.data.duration}-day ${reqRes.data.tripType} in ${reqRes.data.destination}`,
+                                finalCost: priceStep?.output?.finalCost || 0,
+                                budget: reqRes.data.budget,
+                                budgetFit: priceStep?.output?.budgetFit ?? true,
+                                qualityScore: qualityStep?.output?.qualityScore || 0,
+                                quoteId: latestRun.quoteId || null,
+                            });
+                        } else if (latestRun.status === 'FAILED') {
+                            // Show error state
+                            setAgentStatus('ERROR');
+                            setAgentStep(mapStepsToUI(latestRun.steps));
+                            setAgentError(latestRun.error || 'Previous run failed');
+                        }
+                    }
+                } catch (latestErr) {
+                    // No previous run or endpoint not found - that's okay, stay IDLE
+                    console.log('No previous agent run found');
+                }
 
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -371,10 +433,26 @@ const RequirementDetails = () => {
                             className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-emerald-500 disabled:hover:to-teal-500"
                         >
                             <FaBolt className="text-lg" />
-                            {agentStatus === 'ERROR' ? 'Retry AI Agent' : 'Run AI Agent'}
+                            {agentStatus === 'ERROR' ? (forceRerun ? 'Force Rerun Agent' : 'Retry AI Agent') : 'Run AI Agent'}
                         </button>
+
+                        {/* Force rerun checkbox - only show on 409 error */}
+                        {is409Error && (
+                            <label className="flex items-center gap-2 mt-3 cursor-pointer justify-center text-sm text-gray-400 hover:text-gray-300">
+                                <input
+                                    type="checkbox"
+                                    checked={forceRerun}
+                                    onChange={(e) => setForceRerun(e.target.checked)}
+                                    className="w-4 h-4 rounded border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+                                />
+                                Force rerun (cancels existing run)
+                            </label>
+                        )}
+
                         <p className="text-xs text-gray-500 text-center mt-3">
-                            This will automatically build itinerary, pricing and final quote.
+                            {is409Error
+                                ? 'Check the box above to force a new run'
+                                : 'This will automatically build itinerary, pricing and final quote.'}
                         </p>
                     </div>
                 )}
