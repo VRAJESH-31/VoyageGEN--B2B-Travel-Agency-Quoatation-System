@@ -16,7 +16,8 @@ const QuotesList = () => {
             try {
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
                 const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/quotes`, config);
-                setQuotes(res.data);
+                // Handle paginated response format
+                setQuotes(res.data.data || res.data);
             } catch (error) {
                 console.error('Error fetching quotes:', error);
             } finally {
@@ -438,7 +439,7 @@ const QuotesList = () => {
                                 ${quote.sections.transport.map(transport => `
                                 <tr class="${transport.source === 'AI' ? 'ai-row' : ''}">
                                     <td class="item-name">
-                                        ${transport.type}
+                                        ${transport.vehicleType}
                                         ${transport.source === 'AI' ? '<span class="ai-badge">Live Market</span>' : ''}
                                     </td>
                                     <td>${transport.days}</td>
@@ -626,11 +627,21 @@ ${quote.itineraryText}
                     {quotes.map(quote => (
                         <div
                             key={quote._id}
-                            className="bg-zinc-900 border border-white/10 rounded-xl p-6 hover:border-emerald-500/50 transition-all"
+                            className={`bg-zinc-900 border rounded-xl p-6 transition-all ${quote.agentRunId
+                                ? 'border-purple-500/30 hover:border-purple-500/60 bg-gradient-to-r from-purple-500/5 to-transparent'
+                                : 'border-white/10 hover:border-emerald-500/50'
+                                }`}
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="text-xl font-bold mb-1">{quote.requirementId?.contactInfo?.name || 'Traveler'}</h3>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="text-xl font-bold">{quote.requirementId?.contactInfo?.name || 'Traveler'}</h3>
+                                        {quote.agentRunId && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                                                AI Generated
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-gray-400">
                                         Quote #{quote._id.slice(-6)} • {quote.requirementId?.destination || 'N/A'}
                                     </p>

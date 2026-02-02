@@ -16,7 +16,8 @@ const AgentDashboard = () => {
                     headers: { Authorization: `Bearer ${user.token}` },
                 };
                 const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements`, config);
-                setRequirements(data);
+                // Handle paginated response format
+                setRequirements(data.data || data);
             } catch (error) {
                 console.error('Error fetching requirements:', error);
             } finally {

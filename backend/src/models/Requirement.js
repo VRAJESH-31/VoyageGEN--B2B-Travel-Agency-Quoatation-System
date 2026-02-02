@@ -36,9 +36,32 @@ const requirementSchema = new mongoose.Schema({
         enum: ['NEW', 'IN_PROGRESS', 'QUOTES_READY', 'SENT_TO_USER', 'COMPLETED'],
         default: 'NEW',
     },
+    // Agent Tracking Fields (Day 2)
+    agentStatus: {
+        type: String,
+        enum: ['NEW', 'IN_AGENT', 'COMPLETED', 'FAILED'],
+        default: 'NEW',
+    },
+    lastAgentRunId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AgentRun',
+        default: null,
+    },
+    lastAgentRunAt: {
+        type: Date,
+        default: null,
+    },
+    latestQuoteId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quote',
+        default: null,
+    },
 }, {
     timestamps: true,
 });
+
+// Index for agent status filtering
+requirementSchema.index({ agentStatus: 1, createdAt: -1 });
 
 const Requirement = mongoose.model('Requirement', requirementSchema);
 
