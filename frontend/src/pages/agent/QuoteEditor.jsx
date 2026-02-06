@@ -60,50 +60,50 @@ const QuoteEditor = () => {
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-4xl font-serif font-bold text-white">Edit Quote</h1>
-                    <p className="text-gray-400">Modify details and pricing before sending.</p>
+                    <p className="text-gray-500">Modify details and pricing before sending.</p>
                 </div>
                 <div className="flex gap-4">
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="flex items-center gap-2 bg-emerald-500 text-black font-bold px-6 py-3 rounded-xl hover:bg-emerald-400 transition-all disabled:opacity-50 shadow-lg hover:shadow-emerald-500/20"
+                        className="flex items-center gap-2 bg-emerald-500 text-black font-bold px-6 py-3 rounded-lg hover:bg-emerald-400 transition-all disabled:opacity-50 shadow-md hover:shadow-lg"
                     >
                         <FaSave /> {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                     <button
                         onClick={() => navigate('/agent/quotes')}
-                        className="bg-white/5 text-white px-6 py-3 rounded-xl font-bold hover:bg-white/10 transition-all border border-white/10"
+                        className="bg-zinc-800 text-zinc-300 px-6 py-3 rounded-lg font-bold hover:bg-zinc-700 transition-all border border-zinc-700"
                     >
                         Back to Quotes
                     </button>
                 </div>
             </div>
 
-            {/* AI Itinerary Section - Enhanced UI */}
+            {/* AI Itinerary Section */}
             {quote.itineraryText && (
-                <div className="glass-card p-1 rounded-3xl mb-8 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-pink-500/10 opacity-50" />
-                    <div className="bg-black/40 backdrop-blur-md rounded-[20px] p-8 relative z-10">
+                <div className="glass-card p-8 rounded-xl mb-8 relative overflow-hidden border-zinc-800">
+                    <div className="absolute inset-0 bg-zinc-900/50" />
+                    <div className="relative z-10">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
-                                    <span className="text-2xl">✨</span>
+                                <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700">
+                                    <span className="text-lg">✨</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 bg-clip-text text-transparent">
+                                    <h3 className="text-xl font-bold text-zinc-100">
                                         AI-Generated Itinerary
                                     </h3>
-                                    <p className="text-sm text-gray-400">Powered by VoyageAI</p>
+                                    <p className="text-xs text-zinc-500">Powered by VoyageAI</p>
                                 </div>
                             </div>
-                            <div className="px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></span>
-                                <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">AI Curated</span>
+                            <div className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/10 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">AI Curated</span>
                             </div>
                         </div>
 
-                        <div className="bg-black/30 rounded-xl p-6 border border-white/5">
-                            <pre className="text-gray-300 leading-relaxed whitespace-pre-wrap font-sans text-sm tracking-wide">
+                        <div className="bg-zinc-950/50 rounded-lg p-6 border border-zinc-800">
+                            <pre className="text-zinc-300 leading-relaxed whitespace-pre-wrap font-sans text-sm tracking-wide">
                                 {quote.itineraryText}
                             </pre>
                         </div>
@@ -115,15 +115,15 @@ const QuoteEditor = () => {
             <div className="space-y-6">
                 {/* Hotels Section */}
                 {quote.sections?.hotels?.length > 0 && (
-                    <div className="glass-card p-6 rounded-2xl">
-                        <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">🏨</div>
+                    <div className="glass-card p-6 rounded-xl border-zinc-800">
+                        <h3 className="text-lg font-bold mb-6 text-white flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 border border-zinc-700">🏨</div>
                             Hotels
                         </h3>
                         {quote.sections.hotels.map((hotel, index) => (
-                            <div key={index} className="grid grid-cols-6 gap-4 mb-4 items-end bg-white/5 p-4 rounded-xl border border-white/5">
+                            <div key={index} className="grid grid-cols-6 gap-4 mb-4 items-end bg-zinc-900/30 p-4 rounded-lg border border-zinc-800/50">
                                 <div className="col-span-2">
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Hotel Name</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Hotel Name</label>
                                     <input
                                         value={hotel.name}
                                         onChange={(e) => {
@@ -131,11 +131,11 @@ const QuoteEditor = () => {
                                             newHotels[index].name = e.target.value;
                                             setQuote({ ...quote, sections: { ...quote.sections, hotels: newHotels } });
                                         }}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white focus:border-emerald-500/50 outline-none transition-colors"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:border-zinc-600 outline-none transition-colors"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Nights</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Nights</label>
                                     <input
                                         type="number"
                                         value={hotel.nights}
@@ -145,11 +145,11 @@ const QuoteEditor = () => {
                                             newHotels[index].total = newHotels[index].unitPrice * newHotels[index].nights;
                                             setQuote({ ...quote, sections: { ...quote.sections, hotels: newHotels } });
                                         }}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white focus:border-emerald-500/50 outline-none transition-colors"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:border-zinc-600 outline-none transition-colors"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Price/Night</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Price/Night</label>
                                     <input
                                         type="number"
                                         value={hotel.unitPrice}
@@ -159,14 +159,14 @@ const QuoteEditor = () => {
                                             newHotels[index].total = newHotels[index].unitPrice * newHotels[index].nights;
                                             setQuote({ ...quote, sections: { ...quote.sections, hotels: newHotels } });
                                         }}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white focus:border-emerald-500/50 outline-none transition-colors"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200 focus:border-zinc-600 outline-none transition-colors"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
-                                    <div className="p-2.5 text-emerald-400 font-mono font-bold bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-center">₹{hotel.total?.toLocaleString()}</div>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
+                                    <div className="p-2.5 text-zinc-400 font-mono font-bold bg-zinc-900/50 rounded-lg border border-zinc-800 text-center">₹{hotel.total?.toLocaleString()}</div>
                                 </div>
-                                <button className="text-gray-500 hover:text-red-400 p-3 hover:bg-red-500/10 rounded-lg transition-all flex items-center justify-center">
+                                <button className="text-zinc-600 hover:text-red-400 p-3 hover:bg-zinc-800 rounded-lg transition-all flex items-center justify-center">
                                     <FaTrash />
                                 </button>
                             </div>
@@ -176,33 +176,33 @@ const QuoteEditor = () => {
 
                 {/* Transport Section */}
                 {quote.sections?.transport?.length > 0 && (
-                    <div className="glass-card p-6 rounded-2xl">
-                        <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">🚗</div>
+                    <div className="glass-card p-6 rounded-xl border-zinc-800">
+                        <h3 className="text-lg font-bold mb-6 text-white flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 border border-zinc-700">🚗</div>
                             Transport
                         </h3>
                         {quote.sections.transport.map((item, index) => (
-                            <div key={index} className="grid grid-cols-5 gap-4 mb-4 items-end bg-white/5 p-4 rounded-xl border border-white/5">
+                            <div key={index} className="grid grid-cols-5 gap-4 mb-4 items-end bg-zinc-900/30 p-4 rounded-lg border border-zinc-800/50">
                                 <div className="col-span-2">
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Type</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Type</label>
                                     <input
                                         value={item.vehicleType}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200"
                                         readOnly
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Unit Price</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Unit Price</label>
                                     <input
                                         type="number"
                                         value={item.unitPrice}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200"
                                         readOnly
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
-                                    <div className="p-2.5 text-blue-400 font-mono font-bold bg-blue-500/10 rounded-lg border border-blue-500/20 text-center">₹{item.total?.toLocaleString()}</div>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
+                                    <div className="p-2.5 text-zinc-400 font-mono font-bold bg-zinc-900/50 rounded-lg border border-zinc-800 text-center">₹{item.total?.toLocaleString()}</div>
                                 </div>
                             </div>
                         ))}
@@ -211,33 +211,33 @@ const QuoteEditor = () => {
 
                 {/* Activities Section */}
                 {quote.sections?.activities?.length > 0 && (
-                    <div className="glass-card p-6 rounded-2xl">
-                        <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">🎯</div>
+                    <div className="glass-card p-6 rounded-xl border-zinc-800">
+                        <h3 className="text-lg font-bold mb-6 text-white flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 border border-zinc-700">🎯</div>
                             Activities
                         </h3>
                         {quote.sections.activities.map((item, index) => (
-                            <div key={index} className="grid grid-cols-5 gap-4 mb-4 items-end bg-white/5 p-4 rounded-xl border border-white/5">
+                            <div key={index} className="grid grid-cols-5 gap-4 mb-4 items-end bg-zinc-900/30 p-4 rounded-lg border border-zinc-800/50">
                                 <div className="col-span-2">
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Activity</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Activity</label>
                                     <input
                                         value={item.name}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200"
                                         readOnly
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Unit Price</label>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Unit Price</label>
                                     <input
                                         type="number"
                                         value={item.unitPrice}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white"
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-zinc-200"
                                         readOnly
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
-                                    <div className="p-2.5 text-purple-400 font-mono font-bold bg-purple-500/10 rounded-lg border border-purple-500/20 text-center">₹{item.total?.toLocaleString()}</div>
+                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 block">Total</label>
+                                    <div className="p-2.5 text-zinc-400 font-mono font-bold bg-zinc-900/50 rounded-lg border border-zinc-800 text-center">₹{item.total?.toLocaleString()}</div>
                                 </div>
                             </div>
                         ))}
@@ -245,18 +245,18 @@ const QuoteEditor = () => {
                 )}
 
                 {/* Costs Summary */}
-                <div className="glass-card p-8 rounded-2xl border-t border-emerald-500/20 bg-emerald-900/5">
-                    <h3 className="text-xl font-bold mb-6 text-emerald-400 flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">💰</div>
+                <div className="glass-card p-8 rounded-xl border-t border-zinc-800 bg-zinc-900/50">
+                    <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 border border-zinc-700">💰</div>
                         Cost Breakdown
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         <div>
-                            <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2">Net Cost</label>
-                            <div className="text-2xl font-mono text-white">₹{quote.costs?.net?.toLocaleString()}</div>
+                            <label className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">Net Cost</label>
+                            <div className="text-2xl font-mono text-zinc-300">₹{quote.costs?.net?.toLocaleString()}</div>
                         </div>
                         <div>
-                            <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2">Margin (%)</label>
+                            <label className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">Margin (%)</label>
                             <input
                                 type="number"
                                 value={quote.costs?.margin || 0}
@@ -273,16 +273,16 @@ const QuoteEditor = () => {
                                         }
                                     });
                                 }}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-white text-lg font-bold text-center focus:border-emerald-500/50 outline-none transition-colors"
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 text-white text-lg font-bold text-center focus:border-zinc-600 outline-none transition-colors"
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2">Final Cost</label>
-                            <div className="text-2xl font-mono text-emerald-400 font-bold">₹{quote.costs?.final?.toLocaleString()}</div>
+                            <label className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">Final Cost</label>
+                            <div className="text-2xl font-mono text-emerald-500 font-bold">₹{quote.costs?.final?.toLocaleString()}</div>
                         </div>
                         <div>
-                            <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2">Per Person</label>
-                            <div className="text-2xl font-mono text-blue-400 font-bold">₹{quote.costs?.perHead?.toLocaleString()}</div>
+                            <label className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">Per Person</label>
+                            <div className="text-2xl font-mono text-zinc-400 font-bold">₹{quote.costs?.perHead?.toLocaleString()}</div>
                         </div>
                     </div>
                 </div>

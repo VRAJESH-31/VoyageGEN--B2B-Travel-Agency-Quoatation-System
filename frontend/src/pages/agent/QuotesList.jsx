@@ -618,18 +618,17 @@ ${quote.itineraryText}
             </div>
 
             {quotes.length === 0 ? (
-                <div className="glass-card rounded-3xl p-16 text-center border-dashed border-2 border-white/10 flex flex-col items-center justify-center">
-                    <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6 shadow-xl border border-white/5 relative group">
-                        <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <FaQuoteRight className="text-4xl text-gray-600 group-hover:text-emerald-400 transition-colors relative z-10" />
+                <div className="glass-card rounded-xl p-16 text-center border-dashed border-2 border-zinc-800 flex flex-col items-center justify-center">
+                    <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6 shadow-sm border border-zinc-800 relative group">
+                        <FaQuoteRight className="text-4xl text-zinc-600 group-hover:text-zinc-400 transition-colors relative z-10" />
                     </div>
                     <h3 className="text-3xl font-serif font-bold text-white mb-3">Canvas Empty</h3>
-                    <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">No quotes generated yet. Start by creating a requirement and running the agent.</p>
+                    <p className="text-gray-500 max-w-md mx-auto mb-8 text-lg">No quotes generated yet. Start by creating a requirement and running the agent.</p>
                     <button
                         onClick={() => navigate('/agent')}
-                        className="bg-emerald-500 hover:bg-emerald-400 text-black px-8 py-4 rounded-full font-bold transition-all shadow-lg hover:shadow-emerald-500/30 flex items-center gap-2"
+                        className="bg-emerald-500 hover:bg-emerald-400 text-black px-8 py-3 rounded-full font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
                     >
-                        <FaList /> View Requirements
+                        <FaFileInvoice /> View Requirements
                     </button>
                 </div>
             ) : (
@@ -637,23 +636,23 @@ ${quote.itineraryText}
                     {quotes.map((quote, index) => (
                         <div
                             key={quote._id}
-                            className="glass-card rounded-3xl p-6 transition-all group flex flex-col h-full hover:border-emerald-500/30 hover:bg-zinc-900/80 animate-enter"
+                            className="glass-card rounded-xl p-6 transition-all group flex flex-col h-full hover:bg-zinc-900/60 hover:border-zinc-700 border-zinc-800/50 animate-enter"
                             style={{ animationDelay: `${index * 100}ms` }}
                         >
                             {/* Card Header & Badges */}
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-xs text-gray-500 font-mono tracking-tighter">#{quote._id.slice(-6)}</span>
+                                    <span className="text-xs text-zinc-500 font-mono tracking-tighter">#{quote._id.slice(-6)}</span>
                                     {quote.agentRunId && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20 w-fit">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/10 w-fit">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
                                             <span className="text-[10px] font-bold uppercase text-purple-400 tracking-wider">AI Generated</span>
                                         </div>
                                     )}
                                 </div>
-                                <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${quote.status === 'DRAFT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                    quote.status === 'SENT_TO_USER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                                        'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider border ${quote.status === 'DRAFT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/10' :
+                                    quote.status === 'SENT_TO_USER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/10' :
+                                        'bg-emerald-500/10 text-emerald-400 border-emerald-500/10'
                                     }`}>
                                     {quote.status.replace(/_/g, ' ')}
                                 </span>
@@ -664,27 +663,25 @@ ${quote.itineraryText}
                                 <h3 className="text-2xl font-serif font-bold text-white mb-1 group-hover:text-emerald-400 transition-colors line-clamp-1">
                                     {quote.requirementId?.contactInfo?.name || 'Traveler'}
                                 </h3>
-                                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                                    <FaMapMarkedAlt className="text-emerald-500" />
+                                <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                                    <FaMapMarkedAlt className="text-zinc-500" />
                                     <span>{quote.requirementId?.destination || 'Global Request'}</span>
                                 </div>
                             </div>
 
-                            {/* Divider with circle */}
-                            <div className="relative h-px bg-white/10 mb-6">
-                                <div className="absolute left-1/2 -translate-x-1/2 -top-1.5 w-3 h-3 bg-zinc-900 rounded-full border border-white/10" />
-                            </div>
+                            {/* Divider */}
+                            <div className="h-px bg-zinc-800 mb-6" />
 
                             {/* Stats Grid */}
                             <div className="grid grid-cols-2 gap-4 mb-8">
-                                <div className="bg-black/30 rounded-2xl p-4 border border-white/5">
-                                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Total Package</p>
-                                    <p className="text-emerald-400 font-bold text-lg font-mono">₹{quote.costs?.final?.toLocaleString() || '0'}</p>
+                                <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+                                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Total Package</p>
+                                    <p className="text-emerald-500/80 font-bold text-lg font-mono">₹{quote.costs?.final?.toLocaleString() || '0'}</p>
                                 </div>
-                                <div className="bg-black/30 rounded-2xl p-4 border border-white/5">
-                                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Duration</p>
+                                <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+                                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Duration</p>
                                     <p className="text-white font-bold text-lg flex items-center gap-2">
-                                        <FaCalendarAlt className="text-gray-600 text-sm" />
+                                        <FaCalendarAlt className="text-zinc-600 text-sm" />
                                         {quote.requirementId?.duration || 'N/A'} Days
                                     </p>
                                 </div>
@@ -694,14 +691,14 @@ ${quote.itineraryText}
                             <div className="mt-auto flex gap-3 pt-2">
                                 <button
                                     onClick={() => navigate(`/agent/quote/${quote._id}`)}
-                                    className="flex-1 bg-white text-black py-3 rounded-xl font-bold text-sm hover:bg-emerald-400 transition-all shadow-lg hover:shadow-emerald-400/20"
+                                    className="flex-1 bg-zinc-100 text-zinc-900 py-3 rounded-lg font-bold text-sm hover:bg-white transition-all shadow-sm hover:shadow-md"
                                 >
                                     Details
                                 </button>
 
                                 <button
                                     onClick={() => downloadPDF(quote)}
-                                    className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 hover:border-white/30 transition-all"
+                                    className="w-12 h-12 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all"
                                     title="Download PDF"
                                 >
                                     <FaDownload />
@@ -711,9 +708,9 @@ ${quote.itineraryText}
                                 <div className="relative">
                                     <button
                                         onClick={() => setShareDropdown(shareDropdown === quote._id ? null : quote._id)}
-                                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all ${shareDropdown === quote._id
-                                                ? 'bg-indigo-500 text-white border-indigo-500'
-                                                : 'bg-white/5 hover:bg-white/10 text-white border-white/10 hover:border-white/30'
+                                        className={`w-12 h-12 flex items-center justify-center rounded-lg border transition-all ${shareDropdown === quote._id
+                                            ? 'bg-zinc-800 text-white border-zinc-700'
+                                            : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
                                             }`}
                                         title="Share"
                                     >
@@ -721,26 +718,26 @@ ${quote.itineraryText}
                                     </button>
 
                                     {shareDropdown === quote._id && (
-                                        <div className="absolute right-0 bottom-full mb-3 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-20 min-w-[180px] animate-enter origin-bottom-right">
+                                        <div className="absolute right-0 bottom-full mb-3 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-20 min-w-[180px] animate-enter origin-bottom-right">
                                             <button
                                                 onClick={() => handleShare(quote, 'email')}
-                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-all text-left text-sm font-medium text-gray-300 hover:text-white"
+                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-zinc-800 transition-all text-left text-sm font-medium text-zinc-300 hover:text-white"
                                             >
-                                                <FaEnvelope className="text-red-400" /> Email
+                                                <FaEnvelope className="text-red-400/80" /> Email
                                             </button>
-                                            <div className="h-px bg-white/5" />
+                                            <div className="h-px bg-zinc-800" />
                                             <button
                                                 onClick={() => handleShare(quote, 'whatsapp')}
-                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-all text-left text-sm font-medium text-gray-300 hover:text-white"
+                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-zinc-800 transition-all text-left text-sm font-medium text-zinc-300 hover:text-white"
                                             >
-                                                <FaWhatsapp className="text-emerald-400" /> WhatsApp
+                                                <FaWhatsapp className="text-emerald-400/80" /> WhatsApp
                                             </button>
-                                            <div className="h-px bg-white/5" />
+                                            <div className="h-px bg-zinc-800" />
                                             <button
                                                 onClick={() => handleShare(quote, 'instagram')}
-                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-white/5 transition-all text-left text-sm font-medium text-gray-300 hover:text-white"
+                                                className="w-full px-5 py-3.5 flex items-center gap-3 hover:bg-zinc-800 transition-all text-left text-sm font-medium text-zinc-300 hover:text-white"
                                             >
-                                                <FaInstagram className="text-pink-400" /> Instagram
+                                                <FaInstagram className="text-pink-400/80" /> Instagram
                                             </button>
                                         </div>
                                     )}
@@ -748,7 +745,7 @@ ${quote.itineraryText}
 
                                 <button
                                     onClick={() => deleteQuote(quote._id)}
-                                    className="w-12 h-12 flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 hover:border-red-500/30 transition-all"
+                                    className="w-12 h-12 flex items-center justify-center bg-zinc-900 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 rounded-lg border border-zinc-800 hover:border-red-500/20 transition-all"
                                     title="Delete"
                                 >
                                     <FaTrash />

@@ -68,84 +68,83 @@ const AgentDashboard = () => {
 
             {/* Grid Layout */}
             {requirements.length === 0 ? (
-                <div className="glass-card rounded-3xl p-16 text-center border-dashed border-2 border-white/10 flex flex-col items-center justify-center animate-enter">
-                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6 shadow-xl border border-white/5">
-                        <FaPlane className="text-3xl text-emerald-500/50" />
+                <div className="glass-card rounded-xl p-16 text-center border-dashed border-2 border-zinc-800 flex flex-col items-center justify-center animate-enter">
+                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6 shadow-sm border border-zinc-800">
+                        <FaPlane className="text-3xl text-zinc-600" />
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-white mb-2">Queue is Empty</h3>
-                    <p className="text-gray-400 max-w-md mx-auto">No travel requirements found. New requests from the main site will appear here.</p>
+                    <p className="text-gray-500 max-w-md mx-auto">No travel requirements found. New requests from the main site will appear here.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {requirements.map((req, index) => (
                         <div
                             key={req._id}
-                            className="glass-card rounded-3xl p-6 group hover:border-emerald-500/30 relative overflow-hidden flex flex-col h-full animate-enter"
-                            style={{ animationDelay: `${index * 100}ms`, opacity: 0 }} // opacity 0 initially handled by keyframes
+                            className="glass-card rounded-xl p-6 group hover:bg-zinc-900/60 relative overflow-hidden flex flex-col h-full animate-enter transition-all duration-300 border-zinc-800/50 hover:border-zinc-700"
+                            style={{ animationDelay: `${index * 100}ms`, opacity: 0 }}
                         >
                             {/* Card Header */}
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${req.status === 'NEW' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                                req.status === 'QUOTES_READY' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                                                    req.status === 'IN_PROGRESS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                                        'bg-zinc-500/10 text-gray-400 border-zinc-500/20'
+                                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${req.status === 'NEW' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10' :
+                                            req.status === 'QUOTES_READY' ? 'bg-purple-500/10 text-purple-400 border-purple-500/10' :
+                                                'bg-zinc-800 text-zinc-400 border-zinc-700'
                                             }`}>
                                             {req.status.replace('_', ' ')}
                                         </span>
-                                        <span className="text-xs text-gray-500 font-mono">#{req._id.slice(-4)}</span>
+                                        <span className="text-xs text-zinc-500 font-mono">#{req._id.slice(-4)}</span>
                                     </div>
-                                    <h3 className="text-2xl font-serif font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1" title={req.destination}>
+                                    <h3 className="text-xl font-serif font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1" title={req.destination}>
                                         {req.destination}
                                     </h3>
                                 </div>
-                                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 border border-white/5 group-hover:bg-emerald-500/10 group-hover:text-emerald-400 transition-colors shrink-0">
+                                <div className="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center text-zinc-500 border border-zinc-800 group-hover:border-zinc-700 transition-colors shrink-0">
                                     <FaPlane />
                                 </div>
                             </div>
 
                             {/* Info Grid */}
                             <div className="grid grid-cols-2 gap-4 mb-6 flex-1">
-                                <div className="bg-black/20 rounded-xl p-3 border border-white/5">
-                                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
                                         <FaUser /> Traveler
                                     </div>
-                                    <p className="text-white font-medium text-sm truncate" title={req.contactInfo.name}>{req.contactInfo.name}</p>
+                                    <p className="text-zinc-300 font-medium text-sm truncate" title={req.contactInfo.name}>{req.contactInfo.name}</p>
                                 </div>
-                                <div className="bg-black/20 rounded-xl p-3 border border-white/5">
-                                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
                                         <FaCalendar /> Date
                                     </div>
-                                    <p className="text-white font-medium text-sm truncate">
+                                    <p className="text-zinc-300 font-medium text-sm truncate">
                                         {req.startDate ? new Date(req.startDate).toLocaleDateString() : 'Flexible'}
                                     </p>
                                 </div>
-                                <div className="bg-black/20 rounded-xl p-3 border border-white/5">
-                                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
                                         <FaWallet /> Budget
                                     </div>
-                                    <p className="text-emerald-400 font-medium text-sm font-mono">₹{req.budget.toLocaleString()}</p>
+                                    <p className="text-emerald-500/80 font-medium text-sm font-mono">₹{req.budget.toLocaleString()}</p>
                                 </div>
-                                <div className="bg-black/20 rounded-xl p-3 border border-white/5">
-                                    <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
                                         <FaMapMarkerAlt /> Type
                                     </div>
-                                    <p className="text-white font-medium text-sm">{req.tripType}</p>
+                                    <p className="text-zinc-300 font-medium text-sm">{req.tripType}</p>
                                 </div>
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-3 pt-4 border-t border-white/5 mt-auto">
+                            <div className="flex gap-3 pt-4 border-t border-zinc-800 mt-auto">
                                 <Link
                                     to={`/agent/requirement/${req._id}`}
-                                    className="flex-1 bg-white text-black hover:bg-emerald-400 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all group-hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)]"
+                                    className="flex-1 bg-zinc-100 text-zinc-900 hover:bg-white py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
                                 >
-                                    <FaEye /> Open Details
+                                    <FaEye /> View
                                 </Link>
                                 <button
                                     onClick={() => deleteRequirement(req._id)}
-                                    className="px-4 py-3 bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 rounded-xl transition-all"
+                                    className="px-4 py-3 bg-zinc-900 hover:bg-red-900/20 text-zinc-500 hover:text-red-400 border border-zinc-800 hover:border-red-500/20 rounded-lg transition-all"
                                     title="Delete"
                                 >
                                     <FaTrash />
