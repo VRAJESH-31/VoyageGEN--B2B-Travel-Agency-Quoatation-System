@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { FaFilter, FaHotel, FaCar, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave } from 'react-icons/fa';
+import { FaFilter, FaHotel, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const RequirementDetails = () => {
@@ -16,10 +16,10 @@ const RequirementDetails = () => {
     const [generating, setGenerating] = useState(false);
     const [viewingPartner, setViewingPartner] = useState(null);
 
-    // Live Data State
-    const [liveData, setLiveData] = useState(null);
-    const [loadingLive, setLoadingLive] = useState(false);
-    const [selectedAiItems, setSelectedAiItems] = useState([]);
+    // Hotel Fetch State
+    const [liveHotels, setLiveHotels] = useState([]);
+    const [loadingHotels, setLoadingHotels] = useState(false);
+    const [selectedHotel, setSelectedHotel] = useState(null);
 
     // Filter State
     const [filters, setFilters] = useState({
@@ -29,6 +29,7 @@ const RequirementDetails = () => {
         duration: '',
         adults: 1,
         hotelStar: 4,
+        tripType: '',
     });
 
     useEffect(() => {
@@ -94,45 +95,46 @@ const RequirementDetails = () => {
         );
     };
 
-    const fetchLiveData = async () => {
-        setLoadingLive(true);
+    const fetchLiveHotels = async () => {
+        setLoadingHotels(true);
+        setLiveHotels([]);
+        setSelectedHotel(null);
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/partners/live-search`, {
+
+            const checkInDate = requirement.startDate
+                ? new Date(requirement.startDate).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0];
+
+            const checkOutDate = requirement.startDate
+                ? new Date(new Date(requirement.startDate).getTime() + (requirement.duration * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+                : new Date(Date.now() + (requirement.duration * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/partners/fetch-hotels`, {
                 destination: requirement.destination,
-                budget: requirement.budget,
-                days: requirement.duration
+                checkIn: checkInDate,
+                checkOut: checkOutDate,
+                adults: requirement.pax.adults
             }, config);
-            setLiveData(res.data);
+
+            setLiveHotels(res.data.hotels || []);
         } catch (error) {
-            console.error('Error fetching live data:', error);
-            alert('Failed to fetch live market data');
+            console.error('Error fetching hotels:', error);
+            alert('Failed to fetch hotels. Please check your SerpApi key.');
         } finally {
-            setLoadingLive(false);
+            setLoadingHotels(false);
         }
     };
 
-    const toggleAiItem = (item, type) => {
-        const itemWithId = { ...item, type, id: item.name }; // Use name as ID for simplicity
-        setSelectedAiItems(prev => {
-            const exists = prev.find(i => i.name === item.name);
-            if (exists) {
-                return prev.filter(i => i.name !== item.name);
-            } else {
-                return [...prev, itemWithId];
-            }
-        });
-    };
-
     const handleGenerateQuotes = async () => {
-        if (selectedPartners.length === 0 && selectedAiItems.length === 0) return;
+        if (selectedPartners.length === 0) return;
         setGenerating(true);
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
             await axios.post(`${import.meta.env.VITE_API_URL}/api/quotes/generate`, {
                 requirementId: id,
                 partnerIds: selectedPartners,
-                customItems: selectedAiItems,
+                selectedHotel: selectedHotel, // Pass selected hotel to backend
             }, config);
 
             navigate('/agent/quotes'); // Redirect to quotes list (to be built)
@@ -189,198 +191,242 @@ const RequirementDetails = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
-                {/* Left Column: Verified Partners */}
-                <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-serif">Verified Partners</h2>
-                        <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold border border-emerald-500/20">
-                            {partners.length} Found
-                        </span>
-                    </div>
-
-                    {/* Filter Bar */}
-                    <motion.form
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        onSubmit={handleFilter}
-                        className="flex flex-col gap-4 mb-8 bg-black/20 p-4 rounded-xl border border-white/5"
-                    >
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Destination</label>
-                                <input
-                                    type="text"
-                                    value={filters.destination}
-                                    onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Budget</label>
-                                <input
-                                    type="number"
-                                    value={filters.budget}
-                                    onChange={(e) => setFilters({ ...filters, budget: e.target.value })}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setFilters({ destination: '', budget: '', startDate: '', duration: '', adults: 1, hotelStar: 4 })} className="text-xs text-gray-500 hover:text-white px-3 py-2">Reset</button>
-                            <button type="submit" className="bg-emerald-500 text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-emerald-400">Apply Filters</button>
-                        </div>
-                    </motion.form>
-
-                    {/* Partners Grid */}
-                    <div className="space-y-4">
-                        <AnimatePresence>
-                            {partners.map((partner, index) => (
-                                <motion.div
-                                    key={partner._id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={`bg-black/20 border rounded-xl overflow-hidden flex ${selectedPartners.includes(partner.userId) ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-white/5 hover:border-white/20'}`}
-                                >
-                                    <div className="w-32 h-32 relative flex-shrink-0">
-                                        <img src={partner.images?.[0] || 'https://placehold.co/400x400'} alt={partner.companyName} className="w-full h-full object-cover" />
-                                        <div className="absolute top-2 right-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
-                                            <FaStar /> {partner.rating}
-                                        </div>
-                                    </div>
-                                    <div className="p-4 flex flex-col flex-grow justify-between">
-                                        <div>
-                                            <h3 className="font-bold text-white text-lg leading-tight mb-1">{partner.companyName}</h3>
-                                            <p className="text-xs text-gray-400 flex items-center gap-1 mb-2"><FaMapMarkerAlt className="text-emerald-500" /> {partner.destinations.join(', ')}</p>
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <div>
-                                                <p className="text-[10px] text-gray-500 uppercase">Starting from</p>
-                                                <p className="text-emerald-400 font-bold">₹{partner.startingPrice?.toLocaleString()}</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => setViewingPartner(partner)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white"><FaEye /></button>
-                                                <button
-                                                    onClick={() => togglePartner(partner.userId)}
-                                                    className={`px-3 py-2 rounded-lg text-xs font-bold ${selectedPartners.includes(partner.userId) ? 'bg-emerald-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
-                                                >
-                                                    {selectedPartners.includes(partner.userId) ? 'Selected' : 'Select'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                        {partners.length === 0 && <div className="text-center py-10 text-gray-500">No partners found.</div>}
-                    </div>
+            {/* Verified Partners */}
+            <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-serif">Verified Partners</h2>
+                    <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold border border-emerald-500/20">
+                        {partners.length} Found
+                    </span>
                 </div>
 
-                {/* Right Column: Live Market Data */}
-                <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-2xl font-serif bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-bold">Live Market</h2>
-                            <span className="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded text-[10px] border border-purple-500/20 uppercase tracking-wider">AI Powered</span>
+                {/* Filter Bar */}
+                <motion.form
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={handleFilter}
+                    className="flex flex-col gap-4 mb-8 bg-black/20 p-4 rounded-xl border border-white/5"
+                >
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Destination</label>
+                            <input
+                                type="text"
+                                value={filters.destination}
+                                onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
+                                placeholder="e.g., Japan, India"
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                            />
                         </div>
+                        <div>
+                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Budget (₹)</label>
+                            <input
+                                type="number"
+                                value={filters.budget}
+                                onChange={(e) => setFilters({ ...filters, budget: e.target.value })}
+                                placeholder="e.g., 200000"
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Trip Type</label>
+                            <select
+                                value={filters.tripType || ''}
+                                onChange={(e) => setFilters({ ...filters, tripType: e.target.value })}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                            >
+                                <option value="">All Types</option>
+                                <option value="Family">Family</option>
+                                <option value="Honeymoon">Honeymoon</option>
+                                <option value="Adventure">Adventure</option>
+                                <option value="Business">Business</option>
+                                <option value="Solo">Solo Travel</option>
+                                <option value="Group">Group</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Hotel Rating</label>
+                            <select
+                                value={filters.hotelStar || ''}
+                                onChange={(e) => setFilters({ ...filters, hotelStar: e.target.value })}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                            >
+                                <option value="">Any Rating</option>
+                                <option value="3">3+ Stars</option>
+                                <option value="4">4+ Stars</option>
+                                <option value="5">5 Stars Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
                         <button
-                            onClick={fetchLiveData}
-                            disabled={loadingLive}
-                            className="bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2"
+                            type="button"
+                            onClick={() => setFilters({ destination: '', budget: '', startDate: '', duration: '', adults: 1, hotelStar: '', tripType: '' })}
+                            className="text-xs text-gray-500 hover:text-white px-3 py-2 transition-colors"
                         >
-                            {loadingLive ? <FaSpinner className="animate-spin" /> : 'Fetch Live Data'}
+                            Reset
+                        </button>
+                        <button type="submit" className="bg-emerald-500 text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-emerald-400 transition-colors">
+                            Apply Filters
                         </button>
                     </div>
+                </motion.form>
 
-                    {!liveData && !loadingLive && (
-                        <div className="flex-grow flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-white/5 rounded-xl bg-black/20">
-                            <FaCheckCircle className="text-4xl text-gray-700 mb-4" />
-                            <h3 className="text-gray-400 font-bold mb-2">No Live Data Fetched</h3>
-                            <p className="text-gray-500 text-sm max-w-xs">Click "Fetch Live Data" to have the AI research real-time hotel and transport options.</p>
-                        </div>
-                    )}
-
-                    {loadingLive && (
-                        <div className="flex-grow flex flex-col items-center justify-center p-8">
-                            <FaSpinner className="text-4xl text-purple-500 animate-spin mb-4" />
-                            <p className="text-purple-400 animate-pulse">Researching market prices...</p>
-                        </div>
-                    )}
-
-                    {liveData && (
-                        <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-                            {/* Hotels */}
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <FaHotel className="text-purple-400" /> Hotels Found
-                                </h3>
-                                <div className="space-y-3">
-                                    {liveData.hotels?.map((hotel, idx) => (
-                                        <div key={idx} className={`bg-black/20 border rounded-xl p-4 transition-all ${selectedAiItems.find(i => i.name === hotel.name) ? 'border-purple-500 ring-1 ring-purple-500 bg-purple-500/5' : 'border-white/5 hover:border-white/20'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-bold text-white">{hotel.name}</h4>
-                                                <span className="text-xs bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/20">{hotel.rating}</span>
-                                            </div>
-                                            <p className="text-xs text-gray-400 mb-3 flex items-center gap-1"><FaMapMarkerAlt /> {hotel.location}</p>
-                                            <div className="flex flex-wrap gap-1 mb-3">
-                                                {hotel.amenities?.slice(0, 3).map((am, i) => (
-                                                    <span key={i} className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-gray-500">{am}</span>
-                                                ))}
-                                            </div>
-                                            <div className="flex justify-between items-center pt-3 border-t border-white/5">
-                                                <span className="text-purple-400 font-bold font-mono">₹{hotel.price_per_night?.toLocaleString()}<span className="text-gray-600 text-[10px] font-sans">/night</span></span>
-                                                <button
-                                                    onClick={() => toggleAiItem({ ...hotel, price: hotel.price_per_night }, 'Hotel')}
-                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold ${selectedAiItems.find(i => i.name === hotel.name) ? 'bg-purple-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                                                >
-                                                    {selectedAiItems.find(i => i.name === hotel.name) ? 'Added' : 'Add'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                {/* Partners Grid */}
+                <div className="space-y-4">
+                    <AnimatePresence>
+                        {partners.map((partner, index) => (
+                            <motion.div
+                                key={partner._id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`bg-black/20 border rounded-xl overflow-hidden flex ${selectedPartners.includes(partner.userId) ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-white/5 hover:border-white/20'}`}
+                            >
+                                <div className="w-32 h-32 relative flex-shrink-0">
+                                    <img src={partner.images?.[0] || 'https://placehold.co/400x400'} alt={partner.companyName} className="w-full h-full object-cover" />
+                                    <div className="absolute top-2 right-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
+                                        <FaStar /> {partner.rating}
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Transport */}
-                            <div>
-                                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <FaCar className="text-blue-400" /> Transport Options
-                                </h3>
-                                <div className="space-y-3">
-                                    {liveData.transport?.map((trans, idx) => (
-                                        <div key={idx} className={`bg-black/20 border rounded-xl p-4 transition-all ${selectedAiItems.find(i => i.name === trans.type) ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-500/5' : 'border-white/5 hover:border-white/20'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-bold text-white">{trans.type}</h4>
-                                                <span className="text-xs bg-white/10 text-gray-400 px-1.5 py-0.5 rounded">{trans.capacity}</span>
-                                            </div>
-                                            <p className="text-xs text-gray-400 mb-3">{trans.description}</p>
-                                            <div className="flex justify-between items-center pt-3 border-t border-white/5">
-                                                <span className="text-blue-400 font-bold font-mono">₹{trans.price_per_day?.toLocaleString()}<span className="text-gray-600 text-[10px] font-sans">/day</span></span>
-                                                <button
-                                                    onClick={() => toggleAiItem({ name: trans.type, price: trans.price_per_day }, 'Transport')}
-                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold ${selectedAiItems.find(i => i.name === trans.type) ? 'bg-blue-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                                                >
-                                                    {selectedAiItems.find(i => i.name === trans.type) ? 'Added' : 'Add'}
-                                                </button>
-                                            </div>
+                                <div className="p-4 flex flex-col flex-grow justify-between">
+                                    <div>
+                                        <h3 className="font-bold text-white text-lg leading-tight mb-1">{partner.companyName}</h3>
+                                        <p className="text-xs text-gray-400 flex items-center gap-1 mb-2"><FaMapMarkerAlt className="text-emerald-500" /> {partner.destinations.join(', ')}</p>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase">Starting from</p>
+                                            <p className="text-emerald-400 font-bold">₹{partner.startingPrice?.toLocaleString()}</p>
                                         </div>
-                                    ))}
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setViewingPartner(partner)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white"><FaEye /></button>
+                                            <button
+                                                onClick={() => togglePartner(partner.userId)}
+                                                className={`px-3 py-2 rounded-lg text-xs font-bold ${selectedPartners.includes(partner.userId) ? 'bg-emerald-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
+                                            >
+                                                {selectedPartners.includes(partner.userId) ? 'Selected' : 'Select'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                    )}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                    {partners.length === 0 && <div className="text-center py-10 text-gray-500">No partners found.</div>}
                 </div>
+            </div>
+
+            {/* Live Hotels Section */}
+            <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8">
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-2xl font-serif bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent font-bold">Live Hotels</h2>
+                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px] border border-emerald-500/20 uppercase tracking-wider">SerpApi</span>
+                    </div>
+                    <button
+                        onClick={fetchLiveHotels}
+                        disabled={loadingHotels}
+                        className="bg-emerald-500 text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-400 disabled:opacity-50 flex items-center gap-2 transition-all"
+                    >
+                        {loadingHotels ? <FaSpinner className="animate-spin" /> : <FaHotel />}
+                        {loadingHotels ? 'Fetching...' : 'Fetch Hotels'}
+                    </button>
+                </div>
+
+                {!loadingHotels && liveHotels.length === 0 && (
+                    <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-xl bg-black/20">
+                        <FaHotel className="text-4xl text-gray-700 mx-auto mb-4" />
+                        <h3 className="text-gray-400 font-bold mb-2">No Hotels Fetched</h3>
+                        <p className="text-gray-500 text-sm max-w-xs mx-auto">Click "Fetch Hotels" to search for live hotel prices from SerpApi</p>
+                    </div>
+                )}
+
+                {loadingHotels && (
+                    <div className="text-center py-12">
+                        <FaSpinner className="text-4xl text-emerald-500 animate-spin mx-auto mb-4" />
+                        <p className="text-emerald-400 animate-pulse">Searching hotels...</p>
+                    </div>
+                )}
+
+                {!loadingHotels && liveHotels.length > 0 && (
+                    <div className="space-y-3">
+                        <p className="text-sm text-gray-400 mb-4">Found {liveHotels.length} hotels. Select one to include in your quote:</p>
+                        {liveHotels.map((hotel, idx) => (
+                            <motion.div
+                                key={idx}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                                className={`bg-black/30 border rounded-xl p-4 transition-all cursor-pointer ${selectedHotel?.name === hotel.name
+                                    ? 'border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-500/10'
+                                    : 'border-white/5 hover:border-white/20 hover:bg-black/40'
+                                    }`}
+                                onClick={() => setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel)}
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-white text-lg">{hotel.name}</h4>
+                                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                            <FaMapMarkerAlt className="text-emerald-500" /> {hotel.location}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {hotel.rating && hotel.rating !== 'N/A' && (
+                                            <span className="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded border border-yellow-500/20 flex items-center gap-1">
+                                                <FaStar /> {hotel.rating}
+                                            </span>
+                                        )}
+                                        {selectedHotel?.name === hotel.name && (
+                                            <span className="bg-emerald-500 text-black px-2 py-1 rounded text-xs font-bold">
+                                                <FaCheckCircle className="inline" /> Selected
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {hotel.amenities && hotel.amenities.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-3">
+                                        {hotel.amenities.slice(0, 5).map((amenity, i) => (
+                                            <span key={i} className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-500">
+                                                {amenity}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                                    <span className="text-emerald-400 font-bold font-mono text-xl">
+                                        ₹{hotel.price?.toLocaleString()}
+                                        <span className="text-gray-500 text-xs font-sans ml-1">/night</span>
+                                    </span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel);
+                                        }}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selectedHotel?.name === hotel.name
+                                            ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                            : 'bg-white/10 text-white hover:bg-white/20'
+                                            }`}
+                                    >
+                                        {selectedHotel?.name === hotel.name ? 'Selected' : 'Select'}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Generate Quote Button (Floating or Fixed) */}
             <div className="fixed bottom-8 right-8 z-40">
                 <button
                     onClick={handleGenerateQuotes}
-                    disabled={(selectedPartners.length === 0 && selectedAiItems.length === 0) || generating}
+                    disabled={selectedPartners.length === 0 || generating}
                     className="bg-emerald-500 text-black font-bold px-8 py-4 rounded-full hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl shadow-emerald-500/30 flex items-center gap-3 text-lg"
                 >
                     {generating ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
-                    Generate Quote ({selectedPartners.length + selectedAiItems.length})
+                    Generate Quote ({selectedPartners.length})
                 </button>
             </div>
 
@@ -509,7 +555,7 @@ const RequirementDetails = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 };
 
