@@ -357,17 +357,16 @@ const RequirementDetails = () => {
         }
     };
 
-    if (loading || !requirement) return <div className="min-h-screen bg-black flex items-center justify-center p-8 text-center text-white"><FaSpinner className="animate-spin text-4xl mx-auto text-emerald-400" /></div>;
+    if (loading || !requirement) return (
+        <div className="flex items-center justify-center h-full">
+            <FaSpinner className="animate-spin text-4xl text-emerald-400" />
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-black text-gray-200 p-4 md:p-8 font-sans selection:bg-emerald-500/30">
-            {/* Background Ambience */}
-            <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-900/10 blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-900/10 blur-[120px]" />
-            </div>
-
-            <div className="max-w-7xl mx-auto relative z-10">
+        <div className="max-w-[1600px] mx-auto animate-enter">
+            {/* Header Content */}
+            <div className="relative z-10">
                 {/* Modern Header */}
                 <header className="mb-12 flex flex-col md:flex-row justify-between items-end gap-6 border-b border-white/5 pb-8">
                     <div>
@@ -439,8 +438,8 @@ const RequirementDetails = () => {
 
                                         {/* Dynamic Status Badge */}
                                         <div className={`px-4 py-1.5 rounded-full border text-xs font-bold tracking-wider uppercase transition-all ${agentStatus === 'RUNNING' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse' :
-                                                agentStatus === 'DONE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                                    'bg-white/5 border-white/10 text-gray-500'
+                                            agentStatus === 'DONE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                'bg-white/5 border-white/10 text-gray-500'
                                             }`}>
                                             {agentStatus === 'IDLE' && 'IDLE'}
                                             {agentStatus === 'RUNNING' && 'PROCESSING'}
@@ -572,8 +571,8 @@ const RequirementDetails = () => {
                                             animate={{ opacity: 1 }}
                                             onClick={() => togglePartner(partner.userId)}
                                             className={`group relative overflow-hidden rounded-2xl border transition-all cursor-pointer ${selectedPartners.includes(partner.userId)
-                                                    ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/20'
-                                                    : 'border-white/5 bg-black/20 hover:border-white/20'
+                                                ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/20'
+                                                : 'border-white/5 bg-black/20 hover:border-white/20'
                                                 }`}
                                         >
                                             <div className="absolute top-3 right-3 z-10">
@@ -628,8 +627,8 @@ const RequirementDetails = () => {
                                             key={idx}
                                             onClick={() => setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel)}
                                             className={`p-3 rounded-xl border cursor-pointer transition-all ${selectedHotel?.name === hotel.name
-                                                    ? 'bg-emerald-500/10 border-emerald-500/30'
-                                                    : 'bg-black/20 border-white/5 hover:bg-black/40'
+                                                ? 'bg-emerald-500/10 border-emerald-500/30'
+                                                : 'bg-black/20 border-white/5 hover:bg-black/40'
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start">
