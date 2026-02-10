@@ -69,6 +69,90 @@ Live status updates with automatic redirection when quotations are ready
 
 ---
 
+## 🏗️ Architecture Overview
+
+### System Design Philosophy
+
+VoyageGen uses a **multi-agent architecture** where specialized AI agents work in sequence, each focusing on their domain expertise. This approach provides:
+
+- ✅ **Reliability** - Step-by-step execution with error recovery
+- ✅ **Transparency** - Detailed logging at each stage
+- ✅ **Quality** - Independent validation throughout
+- ✅ **Maintainability** - Update agents independently
+
+### High-Level Architecture
+
+```mermaid
+flowchart TD
+    subgraph "Client Layer"
+        A[React Frontend<br/>Vite + TailwindCSS]
+    end
+    
+    subgraph "API Layer"
+        B[Express Gateway<br/>Authentication & Rate Limiting]
+    end
+    
+    subgraph "Business Logic"
+        C[Controllers<br/>HTTP Handlers]
+        D[Services<br/>Business Logic]
+    end
+    
+    subgraph "AI Pipeline"
+        E[5-Agent System<br/>Specialized Processing]
+    end
+    
+    subgraph "Data & External"
+        F[(MongoDB<br/>Primary Database)]
+        G[Google Gemini<br/>LLM]
+        H[SerpAPI<br/>Travel Data]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    E --> G
+    E --> H
+    E --> F
+```
+
+---
+
+## 🤖 The AI Agent Pipeline
+
+Our **5-agent sequential pipeline** transforms raw requirements into professional quotations:
+
+```mermaid
+flowchart LR
+    A[📝 User Input] --> B[🎯 SUPERVISOR]
+    B --> |Normalized Data| C[🔍 RESEARCH]
+    C --> |Destination Intel| D[📅 PLANNER]
+    D --> |Structured Itinerary| E[💰 PRICE]
+    E --> |Cost Breakdown| F[✅ QUALITY]
+    F --> |Validated Quote| G[📄 Final Output]
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e8f5e9
+    style E fill:#fff9c4
+    style F fill:#fce4ec
+    style G fill:#e0f2f1
+```
+
+### Agent Responsibilities
+
+| Agent | Role | Input | Output |
+|-------|------|-------|--------|
+| **🎯 SUPERVISOR** | Validate & normalize requirements | Raw user input | Structured, validated data |
+| **🔍 RESEARCH** | Gather destination intelligence | Normalized requirements | Hotels, activities, attractions via SerpAPI |
+| **📅 PLANNER** | Create detailed itinerary | Research data + requirements | Day-by-day structured plan |
+| **💰 PRICE** | Calculate costs & margins | Itinerary + research data | Complete pricing breakdown |
+| **✅ QUALITY** | Validate & score output | Complete quotation | Quality score & validation |
+
+---
+
 ## 🛠️ Technology Stack
 
 ### Frontend
@@ -99,305 +183,41 @@ Live status updates with automatic redirection when quotations are ready
 
 ---
 
-## 📐 Architecture & Workflow
-
-### System Architecture
-
-```mermaid
-flowchart TB
-    subgraph Client["🖥️ Client Layer"]
-        A[React Frontend<br/>Vite + TailwindCSS]
-    end
-    
-    subgraph Gateway["🚪 API Gateway"]
-        B[Express Server<br/>Auth + Rate Limiting]
-    end
-    
-    subgraph Logic["⚙️ Business Layer"]
-        C[Controllers]
-        D[Services]
-    end
-    
-    subgraph AI["🤖 AI Pipeline"]
-        E[Multi-Agent System<br/>5 Specialized Agents]
-    end
-    
-    subgraph Data["💾 Data Layer"]
-        F[(MongoDB)]
-    end
-    
-    subgraph External["🌐 External Services"]
-        G[Google Gemini API]
-        H[SerpAPI]
-    end
-    
-    A -->|HTTP/REST| B
-    B -->|Validated Request| C
-    C -->|Business Logic| D
-    D -->|Trigger Pipeline| E
-    D <-->|Read/Write| F
-    E <-->|AI Processing| G
-    E <-->|Travel Data| H
-    E -->|Store Results| F
-    F -.->|Response| D
-    D -.->|Response| C
-    C -.->|JSON| B
-    B -.->|JSON| A
-    
-    style Client fill:#E3F2FD,stroke:#1976D2,stroke-width:3px
-    style Gateway fill:#FFF3E0,stroke:#F57C00,stroke-width:3px
-    style Logic fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px
-    style AI fill:#E8F5E9,stroke:#388E3C,stroke-width:3px
-    style Data fill:#FFF9C4,stroke:#F9A825,stroke-width:3px
-    style External fill:#FCE4EC,stroke:#C2185B,stroke-width:3px
-```
-
-### The AI Agent Pipeline
-
-```mermaid
-flowchart LR
-    subgraph Input["📥 Input"]
-        A[User Requirements<br/>Destination, Budget<br/>Duration, Preferences]
-    end
-    
-    subgraph Pipeline["🔄 Processing Pipeline"]
-        B[🎯 SUPERVISOR<br/>Normalize & Validate]
-        C[🔍 RESEARCH<br/>Gather Intel]
-        D[📅 PLANNER<br/>Build Itinerary]
-        E[💰 PRICER<br/>Calculate Costs]
-        F[✅ QUALITY<br/>Validate Output]
-    end
-    
-    subgraph Output["📤 Output"]
-        G[Professional Quote<br/>Itinerary + Pricing<br/>Quality Score]
-    end
-    
-    A -->|Raw Data| B
-    B -->|Structured Data| C
-    C -->|Travel Data| D
-    D -->|Itinerary JSON| E
-    E -->|Priced Quote| F
-    F -->|Validated| G
-    
-    style Input fill:#BBDEFB,stroke:#1565C0,stroke-width:2px
-    style B fill:#FFE0B2,stroke:#E65100,stroke-width:2px
-    style C fill:#E1BEE7,stroke:#6A1B9A,stroke-width:2px
-    style D fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px
-    style E fill:#FFF59D,stroke:#F57F17,stroke-width:2px
-    style F fill:#F8BBD0,stroke:#AD1457,stroke-width:2px
-    style Output fill:#B2DFDB,stroke:#00695C,stroke-width:2px
-```
-
-### Complete Request Flow
+## 🚀 Request Flow
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant U as 👤 User
-    participant F as 🖥️ Frontend
-    participant A as 🚪 API Gateway
-    participant S as ⚙️ Service Layer
-    participant AI as 🤖 AI Pipeline
-    participant D as 💾 Database
+    participant User
+    participant Frontend
+    participant API
+    participant AI as AI Pipeline
+    participant DB as Database
     
-    rect rgb(227, 242, 253)
-    Note over U,F: User Interaction
-    U->>F: Submit Travel Requirements
-    F->>A: POST /api/requirements
-    end
+    User->>Frontend: Submit Travel Requirements
+    Frontend->>API: POST /api/requirements
+    API->>DB: Save Requirement
+    API-->>Frontend: Requirement Created
     
-    rect rgb(255, 243, 224)
-    Note over A,S: Authentication & Routing
-    A->>A: Validate JWT Token
-    A->>A: Check Rate Limits
-    A->>S: Route to Controller
-    end
+    Frontend->>API: POST /api/agent/run/:id
+    API->>AI: Initialize Agent Pipeline
+    AI->>DB: Create AgentRun Record
+    API-->>Frontend: Agent Started
     
-    rect rgb(243, 229, 245)
-    Note over S,D: Data Persistence
-    S->>D: Save Requirement
-    D-->>S: Requirement Saved
-    S-->>F: Return Requirement ID
-    end
-    
-    rect rgb(232, 245, 233)
-    Note over F,AI: Agent Execution
-    F->>A: POST /api/agent/run/:id
-    A->>S: Trigger Agent Pipeline
-    S->>AI: Initialize AgentRun
-    AI->>D: Create AgentRun Record
-    S-->>F: Agent Started (Run ID)
-    end
-    
-    rect rgb(255, 249, 196)
-    Note over F,D: Status Polling
     loop Every 2 seconds
-        F->>A: GET /api/agent/run/:id
-        A->>S: Fetch Status
-        S->>D: Query AgentRun
-        D-->>S: Current Status
-        S-->>A: Status Data
-        A-->>F: Status Update
-    end
+        Frontend->>API: GET /api/agent/run/:id
+        API->>DB: Fetch Status
+        DB-->>API: Current Status
+        API-->>Frontend: Status Update
     end
     
-    rect rgb(232, 245, 233)
-    Note over AI,D: AI Processing
-    AI->>AI: Execute SUPERVISOR
-    AI->>D: Update Progress
-    AI->>AI: Execute RESEARCH
-    AI->>D: Update Progress
-    AI->>AI: Execute PLANNER
-    AI->>D: Update Progress
-    AI->>AI: Execute PRICER
-    AI->>D: Update Progress
-    AI->>AI: Execute QUALITY
-    AI->>D: Update Progress
-    AI->>D: Create Final Quote
-    AI->>D: Mark AgentRun DONE
-    end
+    AI->>AI: Execute 5 Agents Sequentially
+    AI->>DB: Update Progress Per Step
+    AI->>DB: Create Final Quote
     
-    rect rgb(248, 187, 208)
-    Note over F,U: Completion
-    F->>A: GET /api/agent/run/:id
-    A->>S: Fetch Final Status
-    S->>D: Query Completed Run
-    D-->>S: Status: DONE + Quote ID
-    S-->>A: Complete Data
-    A-->>F: Quote Ready
-    F->>F: Auto-redirect to Quote
-    F->>U: Display Quote
-    end
+    Frontend->>API: GET /api/agent/run/:id
+    API-->>Frontend: Status: DONE + QuoteID
+    Frontend->>Frontend: Auto-redirect to Quote
 ```
-
-### Security Flow
-
-```mermaid
-flowchart TD
-    A[📨 Incoming Request] --> B{🔐 JWT Valid?}
-    B -->|❌ No| C[401 Unauthorized]
-    B -->|✅ Yes| D{⏱️ Rate Limit OK?}
-    D -->|❌ Exceeded| E[429 Too Many Requests]
-    D -->|✅ OK| F{👤 Has Permission?}
-    F -->|❌ No| G[403 Forbidden]
-    F -->|✅ Yes| H{✅ Valid Input?}
-    H -->|❌ Invalid| I[400 Bad Request]
-    H -->|✅ Valid| J[✅ Process Request]
-    
-    style A fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
-    style B fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
-    style D fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
-    style F fill:#E8F5E9,stroke:#388E3C,stroke-width:2px
-    style H fill:#FFF9C4,stroke:#F9A825,stroke-width:2px
-    style J fill:#C8E6C9,stroke:#2E7D32,stroke-width:3px
-    style C fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style E fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style G fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-    style I fill:#FFCDD2,stroke:#C62828,stroke-width:2px
-```
-
-### Agent State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> IDLE: User Creates Requirement
-    IDLE --> RUNNING: Trigger Agent Pipeline
-    
-    state RUNNING {
-        [*] --> SUPERVISOR
-        SUPERVISOR --> RESEARCH: ✅ Normalized
-        RESEARCH --> PLANNER: ✅ Data Collected
-        PLANNER --> PRICER: ✅ Itinerary Built
-        PRICER --> QUALITY: ✅ Priced
-        QUALITY --> [*]: ✅ Validated
-    }
-    
-    RUNNING --> DONE: All Steps Complete
-    RUNNING --> FAILED: ❌ Any Step Fails
-    DONE --> [*]: Quote Generated
-    FAILED --> IDLE: Can Retry
-```
-
-### Scaling Architecture
-
-```mermaid
-flowchart TB
-    subgraph LB["⚖️ Load Balancer"]
-        L[NGINX / AWS ALB]
-    end
-    
-    subgraph API["🔷 API Server Cluster"]
-        A1[Express<br/>Instance 1]
-        A2[Express<br/>Instance 2]
-        A3[Express<br/>Instance 3]
-    end
-    
-    subgraph Workers["🤖 Agent Worker Pool"]
-        W1[Worker 1]
-        W2[Worker 2]
-        W3[Worker 3]
-    end
-    
-    subgraph Cache["⚡ Cache Layer"]
-        R[(Redis<br/>Sessions & Cache)]
-    end
-    
-    subgraph DB["💾 Database Cluster"]
-        M1[(MongoDB<br/>Primary)]
-        M2[(MongoDB<br/>Replica 1)]
-        M3[(MongoDB<br/>Replica 2)]
-    end
-    
-    subgraph Queue["📬 Message Queue"]
-        Q[Bull / RabbitMQ]
-    end
-    
-    L --> A1
-    L --> A2
-    L --> A3
-    
-    A1 --> R
-    A2 --> R
-    A3 --> R
-    
-    A1 -.Enqueue.-> Q
-    A2 -.Enqueue.-> Q
-    A3 -.Enqueue.-> Q
-    
-    Q --> W1
-    Q --> W2
-    Q --> W3
-    
-    A1 --> M1
-    A2 --> M1
-    A3 --> M1
-    
-    W1 --> M1
-    W2 --> M1
-    W3 --> M1
-    
-    M1 -.Replicate.-> M2
-    M1 -.Replicate.-> M3
-    
-    style LB fill:#E3F2FD,stroke:#1976D2,stroke-width:3px
-    style API fill:#FFF3E0,stroke:#F57C00,stroke-width:3px
-    style Workers fill:#E8F5E9,stroke:#388E3C,stroke-width:3px
-    style Cache fill:#FCE4EC,stroke:#C2185B,stroke-width:3px
-    style DB fill:#FFF9C4,stroke:#F9A825,stroke-width:3px
-    style Queue fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px
-```
-
----
-
-## 🎯 Agent Responsibilities
-
-| Agent | Role | Input | Output | External APIs |
-|-------|------|-------|--------|---------------|
-| **🎯 SUPERVISOR** | Validate & normalize requirements | Raw user input | Structured, validated data | None |
-| **🔍 RESEARCH** | Gather destination intelligence | Normalized requirements | Hotels, activities, attractions | SerpAPI |
-| **📅 PLANNER** | Create detailed itinerary | Research data + requirements | Day-by-day structured plan | Google Gemini |
-| **💰 PRICER** | Calculate costs & margins | Itinerary + research data | Complete pricing breakdown | Google Gemini |
-| **✅ QUALITY** | Validate & score output | Complete quotation | Quality score & validation | Google Gemini |
 
 ---
 
@@ -432,52 +252,73 @@ frontend/src/
 
 ---
 
-## 🎨 Key Design Decisions
+## 🔐 Security Features
 
-### Why Multi-Agent Architecture?
+### Multi-Layer Protection
 
-| Aspect | Benefit |
-|--------|---------|
-| **Specialization** | Each agent masters one domain (research, planning, pricing) |
-| **Reliability** | Failures isolated to specific steps, easier debugging |
-| **Quality Control** | Independent validation at each stage |
-| **Maintainability** | Update individual agents without affecting others |
-| **Transparency** | Clear audit trail of processing steps |
+```mermaid
+flowchart TD
+    A[Incoming Request] --> B{Rate Limit Check}
+    B -->|Exceeded| C[429 Too Many Requests]
+    B -->|OK| D{JWT Validation}
+    D -->|Invalid| E[401 Unauthorized]
+    D -->|Valid| F{Role Authorization}
+    F -->|Forbidden| G[403 Forbidden]
+    F -->|Allowed| H{Input Validation}
+    H -->|Invalid| I[400 Bad Request]
+    H -->|Valid| J[Process Request]
+    
+    style C fill:#ffcdd2
+    style E fill:#ffcdd2
+    style G fill:#ffcdd2
+    style I fill:#ffcdd2
+    style J fill:#c8e6c9
+```
 
-### Why Separate Pricing Logic?
+### Security Layers
 
-- 💼 **Business Flexibility** - Adjust margins without changing itineraries
-- 🧪 **A/B Testing** - Test different pricing strategies
-- 📊 **Compliance** - Separate pricing rules for regulatory requirements
-- 🔄 **Reusability** - Same itinerary, different pricing models
-
-### Why Quality Validation Agent?
-
-- ✅ **Minimum Standards** - Ensure every quotation meets quality thresholds
-- 🎯 **Consistency** - Automated checking for completeness and accuracy
-- 🛡️ **Risk Mitigation** - Catch AI hallucinations before client delivery
-- 📈 **Continuous Improvement** - Quality metrics drive system enhancements
+| Layer | Implementation | Protection |
+|-------|----------------|------------|
+| **Authentication** | JWT tokens (30-day expiry) | Verify user identity |
+| **Authorization** | Role-based access control | Enforce permissions |
+| **Rate Limiting** | Tiered limits per endpoint | Prevent abuse |
+| **Input Validation** | Zod schemas | Prevent injection attacks |
+| **Password Security** | bcrypt hashing (10 rounds) | Secure credential storage |
 
 ---
 
-## 🏆 Why VoyageGen?
+## 🎯 API Endpoints
 
-<table>
-<tr>
-<td width="33%" align="center">
-<h3>⚡ 95% Time Savings</h3>
-From 4-6 hours to under 2 minutes per quotation
-</td>
-<td width="33%" align="center">
-<h3>🎯 100% Quality</h3>
-Every quotation validated by AI quality agent
-</td>
-<td width="33%" align="center">
-<h3>🔐 Enterprise Ready</h3>
-Security, scalability, and reliability built-in
-</td>
-</tr>
-</table>
+### Authentication
+
+```
+POST   /api/auth/signup      # Register new user
+POST   /api/auth/login       # Authenticate user
+```
+
+### Requirements Management
+
+```
+GET    /api/requirements     # List all requirements
+POST   /api/requirements     # Create new requirement
+GET    /api/requirements/:id # Get specific requirement
+```
+
+### Agent Operations
+
+```
+POST   /api/agent/run/:id    # Start AI pipeline
+GET    /api/agent/run/:id    # Get run status
+GET    /api/agent/runs       # List all agent runs
+```
+
+### Quotations
+
+```
+GET    /api/quotes           # List all quotes
+GET    /api/quotes/:id       # Get specific quote
+POST   /api/quotes           # Create manual quote
+```
 
 ---
 
@@ -551,50 +392,179 @@ Navigate to `http://localhost:5173` and start generating quotations! 🎉
 
 ---
 
-## 🎯 API Endpoints
+## 🎨 Key Design Decisions
 
-### Authentication
-```
-POST   /api/auth/signup      # Register new user
-POST   /api/auth/login       # Authenticate user
-```
+### Why Multi-Agent Architecture?
 
-### Requirements Management
-```
-GET    /api/requirements     # List all requirements
-POST   /api/requirements     # Create new requirement
-GET    /api/requirements/:id # Get specific requirement
-```
+| Aspect | Benefit |
+|--------|---------|
+| **Specialization** | Each agent masters one domain (research, planning, pricing) |
+| **Reliability** | Failures isolated to specific steps, easier debugging |
+| **Quality Control** | Independent validation at each stage |
+| **Maintainability** | Update individual agents without affecting others |
+| **Transparency** | Clear audit trail of processing steps |
 
-### Agent Operations
-```
-POST   /api/agent/run/:id    # Start AI pipeline
-GET    /api/agent/run/:id    # Get run status
-GET    /api/agent/runs       # List all agent runs
-```
+### Why Separate Pricing Logic?
 
-### Quotations
-```
-GET    /api/quotes           # List all quotes
-GET    /api/quotes/:id       # Get specific quote
-POST   /api/quotes           # Create manual quote
-```
+- 💼 **Business Flexibility** - Adjust margins without changing itineraries
+- 🧪 **A/B Testing** - Test different pricing strategies
+- 📊 **Compliance** - Separate pricing rules for regulatory requirements
+- 🔄 **Reusability** - Same itinerary, different pricing models
+
+### Why Quality Validation Agent?
+
+- ✅ **Minimum Standards** - Ensure every quotation meets quality thresholds
+- 🎯 **Consistency** - Automated checking for completeness and accuracy
+- 🛡️ **Risk Mitigation** - Catch AI hallucinations before client delivery
+- 📈 **Continuous Improvement** - Quality metrics drive system enhancements
 
 ---
 
-## 🔒 Security Features
+## 📊 Performance Optimization
 
-- **JWT Authentication:** Secure stateless auth
-- **Rate Limiting:** Protection against abuse
-- **CORS Protection:** Restricted to frontend origin
-- **Input Validation:** Backend validation layer (In Progress)
+### Database Optimization
+
+- **Strategic Indexing** - Optimized for common query patterns
+- **Selective Field Loading** - Fetch only required data
+- **Connection Pooling** - Efficient database connections
+
+### API Performance
+
+- **Request Validation** - Fail fast on invalid inputs
+- **Rate Limiting** - Prevent resource exhaustion
+- **Efficient Polling** - Smart interval management (2s)
+
+### Frontend Optimization
+
+- **Code Splitting** - Lazy load heavy components
+- **Conditional Loading** - Load libraries only when needed
+- **Optimized Rendering** - React best practices throughout
+
+---
+
+## 🚀 Scaling Strategy
+
+### Horizontal Scaling Ready
+
+```mermaid
+flowchart LR
+    LB[Load Balancer]
+    
+    subgraph "API Servers"
+        A1[Express Instance 1]
+        A2[Express Instance 2]
+        A3[Express Instance N]
+    end
+    
+    subgraph "Data Layer"
+        DB[(MongoDB<br/>Sharded)]
+        CACHE[(Redis<br/>Cache)]
+    end
+    
+    subgraph "Worker Pool"
+        W1[Agent Worker 1]
+        W2[Agent Worker 2]
+        W3[Agent Worker N]
+    end
+    
+    LB --> A1
+    LB --> A2
+    LB --> A3
+    
+    A1 --> DB
+    A2 --> DB
+    A3 --> DB
+    
+    A1 --> CACHE
+    A2 --> CACHE
+    A3 --> CACHE
+    
+    A1 -.Queue.-> W1
+    A2 -.Queue.-> W2
+    A3 -.Queue.-> W3
+    
+    W1 --> DB
+    W2 --> DB
+    W3 --> DB
+```
+
+### Future Enhancements
+
+- **Caching Layer** - Redis for session & frequent queries
+- **Message Queue** - RabbitMQ/Bull for async agent processing
+- **Microservices** - Separate AI, notifications, analytics services
+- **CDN Integration** - Static asset delivery optimization
+
+---
+
+## 🧪 Future Roadmap
+
+### Testing Infrastructure
+- Unit testing with Jest
+- Integration tests with Supertest
+- E2E testing with Playwright
+- Mocked AI responses for consistent testing
+
+### Monitoring & Observability
+- Application performance monitoring
+- Error tracking with Sentry
+- Business metrics dashboard
+- User analytics integration
+
+### Advanced Features
+- 🌐 Multi-language support
+- 📱 React Native mobile app
+- 🤖 ML-powered personalization
+- 📧 Automated email quotations
+- 📊 Advanced analytics dashboard
+
+---
+
+## 🏆 Why VoyageGen?
+
+<table>
+<tr>
+<td width="33%" align="center">
+<h3>⚡ 95% Time Savings</h3>
+From 4-6 hours to under 2 minutes per quotation
+</td>
+<td width="33%" align="center">
+<h3>🎯 100% Quality</h3>
+Every quotation validated by AI quality agent
+</td>
+<td width="33%" align="center">
+<h3>🔐 Enterprise Ready</h3>
+Security, scalability, and reliability built-in
+</td>
+</tr>
+</table>
+
+---
+
+## 📝 License
+
+This project is proprietary software. All rights reserved.
 
 ---
 
 ## 🤝 Contributing
 
-1. Fork the repo
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Please see our contributing guidelines for more information.
+
+---
+
+## 📧 Support
+
+For questions, issues, or feature requests, please contact our support team or open an issue in the repository.
+
+---
+
+<div align="center">
+
+**Built with ❤️ for the modern travel industry**
+
+**VoyageGen** - Where AI meets Travel Excellence
+
+[Documentation](#) • [API Reference](#) • [Demo](#) • [Support](#)
+
+</div>

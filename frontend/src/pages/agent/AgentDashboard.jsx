@@ -15,17 +15,47 @@ const AgentDashboard = () => {
                 const config = {
                     headers: { Authorization: `Bearer ${user.token}` },
                 };
-                const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements`, config);
-                // Handle paginated response format
-                setRequirements(data.data || data);
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements`, config);
+                
+                // Handle different response formats
+                let requirementsData = [];
+                if (response.data?.success && Array.isArray(response.data.data)) {
+                    requirementsData = response.data.data;
+                } else if (Array.isArray(response.data)) {
+                    requirementsData = response.data;
+                } else {
+                    console.warn('Unexpected API response format:', response.data);
+                    requirementsData = [];
+                }
+                
+                setRequirements(requirementsData);
             } catch (error) {
-                console.error('Error fetching requirements:', error);
+                // Show more detailed error information
+                if (error.response) {
+                    // Show user-friendly error message
+                    if (error.response.status === 401) {
+                        alert('Your session has expired. Please log in again.');
+                    } else if (error.response.status === 403) {
+                        alert('You do not have permission to access this page.');
+                    } else {
+                        alert(`Error: ${error.response.data?.message || 'Failed to fetch requirements'}`);
+                    }
+                } else {
+                    alert('Network error. Please check your connection.');
+                }
+                
+                // Set empty array on error to prevent map errors
+                setRequirements([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchRequirements();
+        if (user?.token) {
+            fetchRequirements();
+        } else {
+            setLoading(false);
+        }
     }, [user]);
 
     const deleteRequirement = async (requirementId) => {
@@ -77,7 +107,7 @@ const AgentDashboard = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {requirements.map((req, index) => (
+                    {Array.isArray(requirements) && requirements.map((req, index) => (
                         <div
                             key={req._id}
                             className="glass-card rounded-xl p-6 group hover:bg-zinc-900/60 relative overflow-hidden flex flex-col h-full animate-enter transition-all duration-300 border-zinc-800/50 hover:border-zinc-700"

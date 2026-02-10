@@ -15,17 +15,47 @@ const QuotesList = () => {
         const fetchQuotes = async () => {
             try {
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
-                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/quotes`, config);
-                // Handle paginated response format
-                setQuotes(res.data.data || res.data);
+                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/quotes`, config);
+                
+                // Handle different response formats
+                let quotesData = [];
+                if (response.data?.success && Array.isArray(response.data.data)) {
+                    quotesData = response.data.data;
+                } else if (Array.isArray(response.data)) {
+                    quotesData = response.data;
+                } else {
+                    console.warn('Unexpected API response format:', response.data);
+                    quotesData = [];
+                }
+                
+                setQuotes(quotesData);
             } catch (error) {
-                console.error('Error fetching quotes:', error);
+                // Show more detailed error information
+                if (error.response) {
+                    // Show user-friendly error message
+                    if (error.response.status === 401) {
+                        alert('Your session has expired. Please log in again.');
+                    } else if (error.response.status === 403) {
+                        alert('You do not have permission to access this page.');
+                    } else {
+                        alert(`Error: ${error.response.data?.message || 'Failed to fetch quotes'}`);
+                    }
+                } else {
+                    alert('Network error. Please check your connection.');
+                }
+                
+                // Set empty array on error to prevent map errors
+                setQuotes([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchQuotes();
+        if (user?.token) {
+            fetchQuotes();
+        } else {
+            setLoading(false);
+        }
     }, [user]);
 
     const downloadPDF = (quote) => {
@@ -633,7 +663,7 @@ ${quote.itineraryText}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                    {quotes.map((quote, index) => (
+                    {Array.isArray(quotes) && quotes.map((quote, index) => (
                         <div
                             key={quote._id}
                             className="glass-card rounded-xl p-6 transition-all group flex flex-col h-full hover:bg-zinc-900/60 hover:border-zinc-700 border-zinc-800/50 animate-enter"
