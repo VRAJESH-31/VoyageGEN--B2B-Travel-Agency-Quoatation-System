@@ -582,42 +582,19 @@ POST   /api/quotes           # Create manual quote
 
 ---
 
-## 🚀 Future Roadmap
+## 🔒 Security Features
 
-### Testing & Quality
-- Unit testing with Jest
-- Integration tests with Supertest  
-- E2E testing with Playwright
-- AI response mocking
-
-### Advanced Features
-- 🌐 Multi-language support
-- 📱 React Native mobile app
-- 🤖 ML-powered personalization
-- 📧 Automated email quotations
-- 📊 Advanced analytics dashboard
-
-### Infrastructure
-- Redis caching layer
-- Message queue (RabbitMQ/Bull)
-- Microservices architecture
-- Performance monitoring
+- **JWT Authentication:** Secure stateless auth
+- **Rate Limiting:** Protection against abuse
+- **CORS Protection:** Restricted to frontend origin
+- **Input Validation:** Backend validation layer (In Progress)
 
 ---
 
-<div align="center">
+## 🤝 Contributing
 
-### 🏗️ Built & Designed By
-
-**Vrajesh**  
-*Full Stack Developer & AI Enthusiast*
-
-[GitHub](https://github.com/VRAJESH-31) • [LinkedIn](https://www.linkedin.com/in/vrajesh-n-pandya-a8ba25266/) • [Portfolio](https://vrajesh-31.vercel.app/)
-
----
-
-**VoyageGen** - Where AI Meets Travel Excellence ✨
-
-*Transforming B2B Travel Quotations with Intelligent Automation*
-
-</div>
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
