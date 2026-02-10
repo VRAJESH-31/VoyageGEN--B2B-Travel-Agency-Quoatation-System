@@ -1,0 +1,194 @@
+// Planner Agent Service - Gemini JSON Itinerary Generation
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// Strict JSON prompt for itinerary
+const buildItineraryPrompt = (params, research) => {
+    const hotel = research.hotels?.[0] || { name: 'Standard Hotel', pricePerNight: 5000 };
+    
+    return `Generate a PREMIUM, HIGH-END travel itinerary as VALID JSON ONLY. Use evocative, luxury travel language. Include emojis in summary, themes, and activities.
+    
+TRIP DETAILS:
+- Destination: ${params.destination}
+- Duration: ${params.duration} days
+- Type: ${params.tripType} (Make it feel special for this type)
+- Start: ${params.startDate}
+- Budget: ₹${params.budget}
+- Guests: ${params.pax.adults} adults, ${params.pax.children} children
+- Hotel: ${hotel.name} (₹${hotel.pricePerNight}/night)
+
+Return ONLY this JSON structure:
+{
+  "summary": "Values-driven, evocative 2-sentence summary of the trip with emojis. e.g. 'A romantic getaway to... 🌹'",
+  "selectedHotel": {
+    "name": "${hotel.name}",
+    "pricePerNight": ${hotel.pricePerNight},
+    "totalCost": ${hotel.pricePerNight * params.duration}
+  },
+  "days": [
+    {
+      "dayNumber": 1,
+      "date": "YYYY-MM-DD",
+      "theme": "Day title with emoji. e.g. '🏝️ Welcome to Paradise'",
+      "activities": [
+        { "time": "HH:MM", "activity": "Descriptive activity name with emoji. e.g. '🌅 Sunset Cocktails at Potato Head'", "cost": 0 }
+      ],
+      "meals": { "breakfast": "Location", "lunch": "Location", "dinner": "Location" },
+      "dailyCost": 0
+    }
+  ],
+  "totalEstimatedCost": 0,
+  "costBreakdown": { "hotel": 0, "activities": 0, "transport": 0, "meals": 0, "misc": 0 }
+}
+
+RULES:
+1. days array must have exactly ${params.duration} items
+2. Each day must have activities array with 3-5 items
+3. All costs in INR
+4. Output ONLY valid JSON, no backticks or markdown
+5. Use 24h format for time in JSON, but make it logical flow
+6. Make the content feel PREMIUM and EXCLUSIVE`;
+};
+
+// Validate itinerary JSON structure
+const validateItinerary = (itinerary, expectedDays) => {
+    const errors = [];
+    
+    if (!itinerary.summary) errors.push('Missing summary');
+    if (!itinerary.selectedHotel) errors.push('Missing selectedHotel');
+    if (!Array.isArray(itinerary.days)) errors.push('days must be array');
+    else if (itinerary.days.length !== expectedDays) {
+        errors.push(`Expected ${expectedDays} days, got ${itinerary.days.length}`);
+    }
+    if (!itinerary.totalEstimatedCost) errors.push('Missing totalEstimatedCost');
+    
+    // Validate each day
+    itinerary.days?.forEach((day, i) => {
+        if (!Array.isArray(day.activities) || day.activities.length === 0) {
+            errors.push(`Day ${i + 1} missing activities`);
+        }
+    });
+    
+    return { valid: errors.length === 0, errors };
+};
+
+// Extract JSON from potentially messy response
+const extractJson = (text) => {
+    let cleaned = text.trim();
+    
+    // Remove markdown code blocks
+    if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/```json?\n?/g, '').replace(/```$/g, '');
+    }
+    
+    // Find JSON boundaries
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+        cleaned = cleaned.slice(start, end + 1);
+    }
+    
+    return JSON.parse(cleaned);
+};
+
+// Timeout helper (30 seconds)
+const GEMINI_TIMEOUT_MS = 30000;
+
+const withTimeout = (promise, timeoutMs = GEMINI_TIMEOUT_MS) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Gemini request timeout')), timeoutMs)
+        )
+    ]);
+};
+
+// Check if error is retryable
+const isRetryableError = (error) => {
+    const msg = error.message?.toLowerCase() || '';
+    return msg.includes('timeout') || 
+           msg.includes('network') || 
+           msg.includes('json') ||
+           msg.includes('econnreset') ||
+           msg.includes('socket');
+};
+
+// Main planner function
+const generateItineraryJSON = async (normalizedParams, researchOutput) => {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY not configured');
+    }
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    
+    const prompt = buildItineraryPrompt(normalizedParams, researchOutput);
+    let itinerary = null;
+    let attempts = 0;
+    const maxAttempts = 2;
+    let lastError = null;
+    
+    while (attempts < maxAttempts) {
+        attempts++;
+        
+        try {
+            // Wrap Gemini call with timeout
+            const result = await withTimeout(model.generateContent(prompt));
+            const text = result.response.text();
+            
+            itinerary = extractJson(text);
+            const validation = validateItinerary(itinerary, normalizedParams.duration);
+            
+            if (validation.valid) {
+                return { itinerary, warnings: [], attempts };
+            }
+            
+            // Retry with fix prompt on validation failure
+            if (attempts < maxAttempts) {
+                console.log('Validation failed, retrying:', validation.errors);
+            } else {
+                return { 
+                    itinerary, 
+                    warnings: validation.errors, 
+                    attempts,
+                    partialSuccess: true 
+                };
+            }
+            
+        } catch (error) {
+            lastError = error;
+            console.error(`Gemini attempt ${attempts} failed:`, error.message);
+            
+            // Retry only on retryable errors
+            if (attempts < maxAttempts && isRetryableError(error)) {
+                console.log('Retrying due to retryable error...');
+                continue;
+            }
+            
+            // Non-retryable or max attempts reached
+            if (attempts >= maxAttempts) {
+                return {
+                    itinerary: null,
+                    error: `Gemini failed after ${attempts} attempts: ${error.message}`,
+                    warnings: ['AI generation failed'],
+                    attempts,
+                    failed: true
+                };
+            }
+        }
+    }
+    
+    return {
+        itinerary: null,
+        error: lastError?.message || 'Failed to generate valid itinerary',
+        warnings: ['AI generation failed'],
+        attempts,
+        failed: true
+    };
+};
+
+module.exports = {
+    generateItineraryJSON,
+    validateItinerary,
+    extractJson,
+    buildItineraryPrompt,
+};

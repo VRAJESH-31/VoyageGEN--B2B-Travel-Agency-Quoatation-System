@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { FaFilter, FaHotel, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave } from 'react-icons/fa';
+import { FaFilter, FaHotel, FaUmbrellaBeach, FaCheckCircle, FaSpinner, FaMapMarkerAlt, FaStar, FaEye, FaTimes, FaMoneyBillWave, FaBolt, FaUserFriends, FaArrowRight } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
+import AgentProgress, { AGENT_STEPS } from '../../components/agent/AgentProgress';
+import AgentResultCard from '../../components/agent/AgentResultCard';
 
 const RequirementDetails = () => {
     const { id } = useParams();
@@ -32,10 +34,175 @@ const RequirementDetails = () => {
         tripType: '',
     });
 
+    // Agent UI State
+    const [agentStatus, setAgentStatus] = useState('IDLE'); // IDLE | RUNNING | DONE | ERROR
+    const [agentStep, setAgentStep] = useState(0);
+    const [agentResult, setAgentResult] = useState(null);
+    const [agentError, setAgentError] = useState(null);
+    const [agentRunId, setAgentRunId] = useState(null);
+    const [forceRerun, setForceRerun] = useState(false);
+    const [is409Error, setIs409Error] = useState(false);
+    const pollingRef = useRef(null);
+    const redirectTimeoutRef = useRef(null);
+
+    // Cleanup polling and redirect timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+            }
+            if (redirectTimeoutRef.current) {
+                clearTimeout(redirectTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    // Map backend steps to UI step index
+    const mapStepsToUI = (steps) => {
+        if (!steps || steps.length === 0) return 0;
+
+        // Backend step names: SUPERVISOR, RESEARCH, PLANNER, PRICE, QUALITY
+        const stepOrder = ['SUPERVISOR', 'RESEARCH', 'PLANNER', 'PRICE', 'QUALITY'];
+
+        // Find the current step index based on backend data
+        let completedCount = 0;
+
+        for (let i = 0; i < stepOrder.length; i++) {
+            const stepName = stepOrder[i];
+            const backendStep = steps.find(s => s.stepName === stepName);
+
+            if (!backendStep) continue;
+
+            if (backendStep.status === 'DONE') {
+                completedCount = i + 1; // Next step should be active
+            } else if (backendStep.status === 'RUNNING') {
+                return i; // Currently running this step
+            } else if (backendStep.status === 'FAILED') {
+                return i; // Failed at this step
+            }
+        }
+
+        // console.log('Step mapping result:', completedCount, 'from steps:', steps);
+        return completedCount;
+    };
+
+    // Poll agent run status
+    const pollAgentRun = useCallback(async (runId) => {
+        if (!runId || !user?.token) return;
+
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            const res = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/agent/run/${runId}`,
+                config
+            );
+
+            const run = res.data?.data || res.data;
+
+            // Update step progress
+            setAgentStep(mapStepsToUI(run.steps));
+
+            if (run.status === 'DONE') {
+                // Stop polling
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                }
+
+                // Extract result from run
+                const priceStep = run.steps?.find(s => s.stepName === 'PRICE');
+                const qualityStep = run.steps?.find(s => s.stepName === 'QUALITY');
+                const quoteId = run.quoteId || null;
+
+                setAgentStatus('DONE');
+                setAgentResult({
+                    summary: `${requirement?.duration || 5}-day ${requirement?.tripType || 'Trip'} in ${requirement?.destination || 'Destination'}`,
+                    finalCost: priceStep?.output?.finalCost || 0,
+                    budget: requirement?.budget || 100000,
+                    budgetFit: priceStep?.output?.budgetFit ?? true,
+                    qualityScore: qualityStep?.output?.qualityScore || 0,
+                    quoteId,
+                });
+
+                // Auto-redirect to quote after 2 seconds
+                if (quoteId) {
+                    redirectTimeoutRef.current = setTimeout(() => {
+                        navigate(`/agent/quote/${quoteId}`);
+                    }, 2000);
+                }
+            } else if (run.status === 'FAILED') {
+                // Stop polling on failure
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                }
+                setAgentStatus('ERROR');
+                setAgentError(run.error || 'Agent run failed');
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+            // Don't stop polling on transient errors
+        }
+    }, [user, requirement, navigate]);
+
+    // Start agent run (real API call)
+    const runAgent = useCallback(async (overrideForce = false) => {
+        if (agentStatus === 'RUNNING' || !user?.token) return;
+
+        // Clear previous polling
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+        }
+
+        setAgentStatus('RUNNING');
+        setAgentStep(0);
+        setAgentResult(null);
+        setAgentError(null);
+        setIs409Error(false);
+
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            // Add forceRun query param if checked or overridden
+            const shouldForce = forceRerun || overrideForce;
+            const url = shouldForce
+                ? `${import.meta.env.VITE_API_URL}/api/agent/run/${id}?forceRun=true`
+                : `${import.meta.env.VITE_API_URL}/api/agent/run/${id}`;
+
+            const res = await axios.post(url, {}, config);
+
+            const runId = res.data?.data?.agentRunId || res.data?.agentRunId;
+            setAgentRunId(runId);
+            setForceRerun(false); // Reset checkbox after successful start
+
+            // Start polling every 3 seconds
+            pollingRef.current = setInterval(() => {
+                pollAgentRun(runId);
+            }, 3000);
+
+            // Also poll immediately
+            pollAgentRun(runId);
+
+        } catch (err) {
+            const status = err.response?.status;
+            const message = err.response?.data?.message || err.message;
+
+            if (status === 409) {
+                // Duplicate run - show friendly message with force rerun option
+                setAgentError('Agent run already in progress.');
+                setIs409Error(true);
+                setAgentStatus('ERROR');
+            } else {
+                setAgentError(message || 'Failed to start agent');
+                setAgentStatus('ERROR');
+            }
+        }
+    }, [agentStatus, user, id, forceRerun, pollAgentRun]);
+
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const config = { headers: { Authorization: `Bearer ${user.token} ` } };
+                const config = { headers: { Authorization: `Bearer ${user.token}` } };
 
                 // Fetch Requirement
                 const reqRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements/${id}`, config);
@@ -61,6 +228,50 @@ const RequirementDetails = () => {
                     adults: reqRes.data.pax.adults,
                     hotelStar: reqRes.data.hotelStar,
                 }, config);
+
+                // Auto-resume: Check for latest agent run
+                try {
+                    const latestRes = await axios.get(
+                        `${import.meta.env.VITE_API_URL}/api/agent/requirement/${id}/latest`,
+                        config
+                    );
+                    const latestRun = latestRes.data?.data || latestRes.data;
+
+                    if (latestRun && latestRun._id) {
+                        setAgentRunId(latestRun._id);
+
+                        if (latestRun.status === 'RUNNING') {
+                            // Resume polling
+                            setAgentStatus('RUNNING');
+                            setAgentStep(mapStepsToUI(latestRun.steps));
+                            pollingRef.current = setInterval(() => {
+                                pollAgentRun(latestRun._id);
+                            }, 3000);
+                        } else if (latestRun.status === 'DONE') {
+                            // Show result immediately
+                            const priceStep = latestRun.steps?.find(s => s.stepName === 'PRICE');
+                            const qualityStep = latestRun.steps?.find(s => s.stepName === 'QUALITY');
+                            setAgentStatus('DONE');
+                            setAgentStep(5);
+                            setAgentResult({
+                                summary: `${reqRes.data.duration}-day ${reqRes.data.tripType} in ${reqRes.data.destination}`,
+                                finalCost: priceStep?.output?.finalCost || 0,
+                                budget: reqRes.data.budget,
+                                budgetFit: priceStep?.output?.budgetFit ?? true,
+                                qualityScore: qualityStep?.output?.qualityScore || 0,
+                                quoteId: latestRun.quoteId || null,
+                            });
+                        } else if (latestRun.status === 'FAILED') {
+                            // Show error state
+                            setAgentStatus('ERROR');
+                            setAgentStep(mapStepsToUI(latestRun.steps));
+                            setAgentError(latestRun.error || 'Previous run failed');
+                        }
+                    }
+                } catch (latestErr) {
+                    // No previous run or endpoint not found - that's okay, stay IDLE
+                    console.log('No previous agent run found');
+                }
 
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -146,291 +357,343 @@ const RequirementDetails = () => {
         }
     };
 
-    if (loading || !requirement) return <div className="p-8 text-center"><FaSpinner className="animate-spin text-4xl mx-auto text-emerald-400" /></div>;
+    if (loading || !requirement) return (
+        <div className="flex items-center justify-center h-full">
+            <FaSpinner className="animate-spin text-4xl text-emerald-400" />
+        </div>
+    );
 
     return (
-        <div className="max-w-7xl mx-auto relative">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-8">
-                <div>
-                    <h1 className="text-3xl font-serif font-bold mb-2">Requirement Details</h1>
-                    <p className="text-gray-400">ID: {requirement._id}</p>
-                </div>
-                <div className="flex gap-4">
-                    <div className="text-right">
-                        <p className="text-sm text-gray-400">Status</p>
-                        <span className="text-emerald-400 font-bold">{requirement.status}</span>
+        <div className="max-w-[1600px] mx-auto animate-enter">
+            {/* Header Content */}
+            <div className="relative z-10">
+                {/* Modern Header */}
+                <header className="mb-12 flex flex-col md:flex-row justify-between items-end gap-6 border-b border-white/5 pb-8">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-wider uppercase">
+                                {requirement.status}
+                            </span>
+                            <span className="text-gray-500 text-sm font-mono tracking-tighter">#{requirement._id.slice(-6)}</span>
+                        </div>
+                        <h1 className="text-4xl md:text-6xl font-serif font-medium text-white tracking-tight">
+                            {requirement.destination}
+                            <span className="text-emerald-500">.</span>
+                        </h1>
+                        <p className="text-gray-400 mt-2 text-lg font-light flex items-center gap-6">
+                            <span>{requirement.duration} Days</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-600" />
+                            <span>{requirement.tripType}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-600" />
+                            <span>₹{requirement.budget.toLocaleString()}</span>
+                        </p>
                     </div>
-                </div>
-            </div>
 
-            {/* Requirement Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-zinc-900/50 border border-white/10 p-6 rounded-xl">
-                    <h3 className="text-lg font-bold mb-4 text-emerald-400">Traveler Info</h3>
-                    <p><span className="text-gray-400">Name:</span> {requirement.contactInfo.name}</p>
-                    <p><span className="text-gray-400">Email:</span> {requirement.contactInfo.email}</p>
-                    <p><span className="text-gray-400">Phone:</span> {requirement.contactInfo.phone}</p>
-                </div>
-                <div className="bg-zinc-900/50 border border-white/10 p-6 rounded-xl">
-                    <h3 className="text-lg font-bold mb-4 text-emerald-400">Trip Details</h3>
-                    <p><span className="text-gray-400">Destination:</span> {requirement.destination}</p>
-                    <p><span className="text-gray-400">Type:</span> {requirement.tripType}</p>
-                    <p><span className="text-gray-400">Duration:</span> {requirement.duration} Days</p>
-                    <p><span className="text-gray-400">Pax:</span> {requirement.pax.adults} Ad, {requirement.pax.children} Ch</p>
-                </div>
-                <div className="bg-zinc-900/50 border border-white/10 p-6 rounded-xl">
-                    <h3 className="text-lg font-bold mb-4 text-emerald-400">Preferences</h3>
-                    <p><span className="text-gray-400">Budget:</span> ₹{requirement.budget.toLocaleString()}</p>
-                    <p><span className="text-gray-400">Hotel:</span> {requirement.hotelStar} Star</p>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {requirement.preferences.map((pref, i) => (
-                            <span key={i} className="text-xs bg-white/10 px-2 py-1 rounded">{pref}</span>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Verified Partners */}
-            <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-serif">Verified Partners</h2>
-                    <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold border border-emerald-500/20">
-                        {partners.length} Found
-                    </span>
-                </div>
-
-                {/* Filter Bar */}
-                <motion.form
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    onSubmit={handleFilter}
-                    className="flex flex-col gap-4 mb-8 bg-black/20 p-4 rounded-xl border border-white/5"
-                >
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Destination</label>
-                            <input
-                                type="text"
-                                value={filters.destination}
-                                onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
-                                placeholder="e.g., Japan, India"
-                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Budget (₹)</label>
-                            <input
-                                type="number"
-                                value={filters.budget}
-                                onChange={(e) => setFilters({ ...filters, budget: e.target.value })}
-                                placeholder="e.g., 200000"
-                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Trip Type</label>
-                            <select
-                                value={filters.tripType || ''}
-                                onChange={(e) => setFilters({ ...filters, tripType: e.target.value })}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                            >
-                                <option value="">All Types</option>
-                                <option value="Family">Family</option>
-                                <option value="Honeymoon">Honeymoon</option>
-                                <option value="Adventure">Adventure</option>
-                                <option value="Business">Business</option>
-                                <option value="Solo">Solo Travel</option>
-                                <option value="Group">Group</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs uppercase tracking-wider text-gray-500 mb-1 font-bold">Hotel Rating</label>
-                            <select
-                                value={filters.hotelStar || ''}
-                                onChange={(e) => setFilters({ ...filters, hotelStar: e.target.value })}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                            >
-                                <option value="">Any Rating</option>
-                                <option value="3">3+ Stars</option>
-                                <option value="4">4+ Stars</option>
-                                <option value="5">5 Stars Only</option>
-                            </select>
+                    <div className="flex gap-3">
+                        {/* Stats Pill */}
+                        <div className="bg-white/5 border border-white/10 rounded-full px-6 py-2 flex items-center gap-4 backdrop-blur-md">
+                            <div className="flex items-center gap-2">
+                                <FaUserFriends className="text-gray-400" />
+                                <span className="text-white font-medium">{requirement.pax.adults + requirement.pax.children}</span>
+                            </div>
+                            <div className="w-px h-4 bg-white/10" />
+                            <div className="flex items-center gap-2">
+                                <FaStar className="text-yellow-500/80" />
+                                <span className="text-white font-medium">{requirement.hotelStar}</span>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setFilters({ destination: '', budget: '', startDate: '', duration: '', adults: 1, hotelStar: '', tripType: '' })}
-                            className="text-xs text-gray-500 hover:text-white px-3 py-2 transition-colors"
+                </header>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* LEFT COLUMN: Agent Console (8 cols) */}
+                    <div className="lg:col-span-8 space-y-8">
+
+                        {/* MAIN AI CONSOLE */}
+                        <motion.div
+                            layout
+                            className="bg-zinc-900/40 border border-white/10 rounded-3xl p-1 overflow-hidden backdrop-blur-xl shadow-2xl shadow-black/50"
                         >
-                            Reset
-                        </button>
-                        <button type="submit" className="bg-emerald-500 text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-emerald-400 transition-colors">
-                            Apply Filters
-                        </button>
-                    </div>
-                </motion.form>
+                            <div className="bg-black/40 rounded-[20px] p-6 md:p-10 border border-white/5 relative overflow-hidden group">
+                                {/* Decorative Glow */}
+                                <div className={`absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 blur-[100px] transition-opacity duration-1000 ${agentStatus === 'RUNNING' ? 'opacity-100' : 'opacity-0'}`} />
 
-                {/* Partners Grid */}
-                <div className="space-y-4">
-                    <AnimatePresence>
-                        {partners.map((partner, index) => (
-                            <motion.div
-                                key={partner._id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`bg-black/20 border rounded-xl overflow-hidden flex ${selectedPartners.includes(partner.userId) ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-white/5 hover:border-white/20'}`}
-                            >
-                                <div className="w-32 h-32 relative flex-shrink-0">
-                                    <img src={partner.images?.[0] || 'https://placehold.co/400x400'} alt={partner.companyName} className="w-full h-full object-cover" />
-                                    <div className="absolute top-2 right-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
-                                        <FaStar /> {partner.rating}
-                                    </div>
-                                </div>
-                                <div className="p-4 flex flex-col flex-grow justify-between">
-                                    <div>
-                                        <h3 className="font-bold text-white text-lg leading-tight mb-1">{partner.companyName}</h3>
-                                        <p className="text-xs text-gray-400 flex items-center gap-1 mb-2"><FaMapMarkerAlt className="text-emerald-500" /> {partner.destinations.join(', ')}</p>
-                                    </div>
-                                    <div className="flex justify-between items-end">
-                                        <div>
-                                            <p className="text-[10px] text-gray-500 uppercase">Starting from</p>
-                                            <p className="text-emerald-400 font-bold">₹{partner.startingPrice?.toLocaleString()}</p>
+                                <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                                {agentStatus === 'RUNNING' ? (
+                                                    <FaSpinner className="text-white text-2xl animate-spin" />
+                                                ) : (
+                                                    <FaBolt className="text-white text-2xl" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-serif text-white mb-1">Voyage AI Agent</h2>
+                                                <p className="text-gray-400 text-sm">
+                                                    {agentStatus === 'RUNNING' ? 'Orchestrating your perfect trip...' : 'Ready to curate your experience'}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setViewingPartner(partner)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white"><FaEye /></button>
-                                            <button
-                                                onClick={() => togglePartner(partner.userId)}
-                                                className={`px-3 py-2 rounded-lg text-xs font-bold ${selectedPartners.includes(partner.userId) ? 'bg-emerald-500 text-black' : 'bg-white text-black hover:bg-gray-200'}`}
-                                            >
-                                                {selectedPartners.includes(partner.userId) ? 'Selected' : 'Select'}
-                                            </button>
+
+                                        {/* Dynamic Status Badge */}
+                                        <div className={`px-4 py-1.5 rounded-full border text-xs font-bold tracking-wider uppercase transition-all ${agentStatus === 'RUNNING' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse' :
+                                            agentStatus === 'DONE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                'bg-white/5 border-white/10 text-gray-500'
+                                            }`}>
+                                            {agentStatus === 'IDLE' && 'IDLE'}
+                                            {agentStatus === 'RUNNING' && 'PROCESSING'}
+                                            {agentStatus === 'DONE' && 'COMPLETED'}
+                                            {agentStatus === 'ERROR' && 'FAILED'}
                                         </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                    {partners.length === 0 && <div className="text-center py-10 text-gray-500">No partners found.</div>}
-                </div>
-            </div>
 
-            {/* Live Hotels Section */}
-            <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 mb-8">
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-2xl font-serif bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent font-bold">Live Hotels</h2>
-                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px] border border-emerald-500/20 uppercase tracking-wider">SerpApi</span>
-                    </div>
-                    <button
-                        onClick={fetchLiveHotels}
-                        disabled={loadingHotels}
-                        className="bg-emerald-500 text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-400 disabled:opacity-50 flex items-center gap-2 transition-all"
-                    >
-                        {loadingHotels ? <FaSpinner className="animate-spin" /> : <FaHotel />}
-                        {loadingHotels ? 'Fetching...' : 'Fetch Hotels'}
-                    </button>
-                </div>
+                                    {/* Action Area */}
+                                    <div className="space-y-6">
+                                        {/* Progress Visualization */}
+                                        <AnimatePresence mode="wait">
+                                            {(agentStatus === 'RUNNING' || agentStatus === 'ERROR') && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                >
+                                                    <AgentProgress status={agentStatus} currentStep={agentStep} error={agentError} />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
 
-                {!loadingHotels && liveHotels.length === 0 && (
-                    <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-xl bg-black/20">
-                        <FaHotel className="text-4xl text-gray-700 mx-auto mb-4" />
-                        <h3 className="text-gray-400 font-bold mb-2">No Hotels Fetched</h3>
-                        <p className="text-gray-500 text-sm max-w-xs mx-auto">Click "Fetch Hotels" to search for live hotel prices from SerpApi</p>
-                    </div>
-                )}
+                                        {/* Result Card Preview */}
+                                        <AnimatePresence>
+                                            {agentStatus === 'DONE' && agentResult && (
+                                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                                                    <AgentResultCard
+                                                        result={agentResult}
+                                                        onOpenQuote={() => {
+                                                            if (agentResult.quoteId) {
+                                                                navigate(`/agent/quote/${agentResult.quoteId}`);
+                                                            }
+                                                        }}
+                                                    />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
 
-                {loadingHotels && (
-                    <div className="text-center py-12">
-                        <FaSpinner className="text-4xl text-emerald-500 animate-spin mx-auto mb-4" />
-                        <p className="text-emerald-400 animate-pulse">Searching hotels...</p>
-                    </div>
-                )}
+                                        {/* Primary Button */}
+                                        {(agentStatus === 'IDLE' || agentStatus === 'ERROR' || agentStatus === 'DONE') && (
+                                            <div className="pt-4 border-t border-white/5">
+                                                <button
+                                                    onClick={() => {
+                                                        const isRegeneration = agentStatus === 'DONE';
+                                                        runAgent(isRegeneration);
+                                                    }}
+                                                    disabled={agentStatus === 'RUNNING'}
+                                                    className="group relative w-full overflow-hidden rounded-xl bg-white p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50"
+                                                >
+                                                    <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2E8F0_0%,#50a799_50%,#E2E8F0_100%)]" />
+                                                    <span className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-slate-950 px-8 py-4 text-base font-medium text-white backdrop-blur-3xl transition-all group-hover:bg-slate-900">
+                                                        {agentStatus === 'ERROR' ? (forceRerun ? 'Force Rerun' : 'Retry Agent') : agentStatus === 'DONE' ? 'Regenerate Itinerary' : 'Initialize Agent Run'}
+                                                        <FaBolt className="ml-2 group-hover:text-emerald-400 transition-colors" />
+                                                    </span>
+                                                </button>
 
-                {!loadingHotels && liveHotels.length > 0 && (
-                    <div className="space-y-3">
-                        <p className="text-sm text-gray-400 mb-4">Found {liveHotels.length} hotels. Select one to include in your quote:</p>
-                        {liveHotels.map((hotel, idx) => (
-                            <motion.div
-                                key={idx}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className={`bg-black/30 border rounded-xl p-4 transition-all cursor-pointer ${selectedHotel?.name === hotel.name
-                                    ? 'border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-500/10'
-                                    : 'border-white/5 hover:border-white/20 hover:bg-black/40'
-                                    }`}
-                                onClick={() => setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel)}
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1">
-                                        <h4 className="font-bold text-white text-lg">{hotel.name}</h4>
-                                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                                            <FaMapMarkerAlt className="text-emerald-500" /> {hotel.location}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {hotel.rating && hotel.rating !== 'N/A' && (
-                                            <span className="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded border border-yellow-500/20 flex items-center gap-1">
-                                                <FaStar /> {hotel.rating}
-                                            </span>
-                                        )}
-                                        {selectedHotel?.name === hotel.name && (
-                                            <span className="bg-emerald-500 text-black px-2 py-1 rounded text-xs font-bold">
-                                                <FaCheckCircle className="inline" /> Selected
-                                            </span>
+                                                {is409Error && (
+                                                    <div className="flex justify-center mt-3">
+                                                        <label className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 cursor-pointer">
+                                                            <input type="checkbox" checked={forceRerun} onChange={(e) => setForceRerun(e.target.checked)} className="rounded bg-white/10 border-white/20 text-emerald-500 focus:ring-0" />
+                                                            Force overwrite existing run
+                                                        </label>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        </motion.div>
 
-                                {hotel.amenities && hotel.amenities.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-3">
-                                        {hotel.amenities.slice(0, 5).map((amenity, i) => (
-                                            <span key={i} className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-500">
-                                                {amenity}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
+                        {/* PARTNERS SECTION */}
+                        <div className="bg-zinc-900/40 border border-white/10 rounded-3xl p-8 backdrop-blur-sm">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-serif text-white">Curated Partners</h2>
+                                <span className="text-xs bg-white/5 px-2 py-1 rounded-md text-gray-400 border border-white/5">{partners.length} Available</span>
+                            </div>
 
-                                <div className="flex justify-between items-center pt-3 border-t border-white/5">
-                                    <span className="text-emerald-400 font-bold font-mono text-xl">
-                                        ₹{hotel.price?.toLocaleString()}
-                                        <span className="text-gray-500 text-xs font-sans ml-1">/night</span>
-                                    </span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel);
-                                        }}
-                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selectedHotel?.name === hotel.name
-                                            ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                                            : 'bg-white/10 text-white hover:bg-white/20'
-                                            }`}
+                            {/* Filter Bar Redesign */}
+                            <motion.form
+                                onSubmit={handleFilter}
+                                className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+                            >
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-wider">Destination</label>
+                                    <input
+                                        type="text"
+                                        value={filters.destination}
+                                        onChange={(e) => setFilters({ ...filters, destination: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500/50 outline-none transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-wider">Budget</label>
+                                    <input
+                                        type="number"
+                                        value={filters.budget}
+                                        onChange={(e) => setFilters({ ...filters, budget: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500/50 outline-none transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-wider">Trip Type</label>
+                                    <select
+                                        value={filters.tripType || ''}
+                                        onChange={(e) => setFilters({ ...filters, tripType: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500/50 outline-none transition-colors"
                                     >
-                                        {selectedHotel?.name === hotel.name ? 'Selected' : 'Select'}
+                                        <option value="">Any</option>
+                                        <option value="Honeymoon">Honeymoon</option>
+                                        <option value="Family">Family</option>
+                                        <option value="Adventure">Adventure</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-end">
+                                    <button type="submit" className="w-full bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 rounded-lg border border-white/10 transition-colors">
+                                        Update
                                     </button>
                                 </div>
-                            </motion.div>
-                        ))}
+                            </motion.form>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <AnimatePresence>
+                                    {partners.map((partner) => (
+                                        <motion.div
+                                            key={partner._id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            onClick={() => togglePartner(partner.userId)}
+                                            className={`group relative overflow-hidden rounded-2xl border transition-all cursor-pointer ${selectedPartners.includes(partner.userId)
+                                                ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/20'
+                                                : 'border-white/5 bg-black/20 hover:border-white/20'
+                                                }`}
+                                        >
+                                            <div className="absolute top-3 right-3 z-10">
+                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedPartners.includes(partner.userId) ? 'bg-emerald-500 border-emerald-500' : 'border-white/30 bg-black/50'
+                                                    }`}>
+                                                    {selectedPartners.includes(partner.userId) && <FaCheckCircle className="text-black text-xs" />}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-4 p-4">
+                                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
+                                                    <img src={partner.images?.[0]} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">{partner.companyName}</h3>
+                                                    <p className="text-xs text-gray-500 mt-1 line-clamp-1">{partner.destinations.join(', ')}</p>
+                                                    <p className="text-sm font-mono text-emerald-500 mt-2">₹{partner.startingPrice?.toLocaleString()}</p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+
                     </div>
-                )}
+
+                    {/* RIGHT COLUMN: Info & Tools (4 cols) */}
+                    <div className="lg:col-span-4 space-y-6">
+
+                        {/* Live Hotels Mini-Widget */}
+                        <div className="bg-zinc-900/60 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-serif text-xl text-white">Live Hotels</h3>
+                                <button
+                                    onClick={fetchLiveHotels}
+                                    disabled={loadingHotels}
+                                    className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors"
+                                >
+                                    {loadingHotels ? <FaSpinner className="animate-spin" /> : <FaHotel />}
+                                </button>
+                            </div>
+
+                            {loadingHotels ? (
+                                <div className="space-y-3">
+                                    {[1, 2, 3].map(i => <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />)}
+                                </div>
+                            ) : liveHotels.length > 0 ? (
+                                <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-2">
+                                    {liveHotels.map((hotel, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={() => setSelectedHotel(selectedHotel?.name === hotel.name ? null : hotel)}
+                                            className={`p-3 rounded-xl border cursor-pointer transition-all ${selectedHotel?.name === hotel.name
+                                                ? 'bg-emerald-500/10 border-emerald-500/30'
+                                                : 'bg-black/20 border-white/5 hover:bg-black/40'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <h4 className="text-sm font-medium text-white line-clamp-1">{hotel.name}</h4>
+                                                {hotel.rating && <span className="text-[10px] text-yellow-500 flex items-center gap-1"><FaStar />{hotel.rating}</span>}
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1 line-clamp-1">{hotel.location}</p>
+                                            <div className="mt-2 flex justify-between items-center">
+                                                <span className="text-emerald-400 font-mono text-sm">₹{hotel.price?.toLocaleString()}</span>
+                                                {selectedHotel?.name === hotel.name && <FaCheckCircle className="text-emerald-500 text-xs" />}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-sm text-gray-600">
+                                    Click refresh to fetch live prices
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Contact Info Card */}
+                        <div className="bg-zinc-900/60 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
+                            <h3 className="font-serif text-lg text-white mb-4">Traveler</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white">
+                                        {requirement.contactInfo.name[0]}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-white font-medium">{requirement.contactInfo.name}</p>
+                                        <p className="text-xs text-gray-500">{requirement.contactInfo.email}</p>
+                                    </div>
+                                </div>
+                                <div className="pt-4 border-t border-white/5">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Phone</span>
+                                        <span className="text-gray-300">{requirement.contactInfo.phone}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* Floating Generate Button */}
+                <div className="fixed bottom-8 right-8 z-50">
+                    <button
+                        onClick={handleGenerateQuotes}
+                        disabled={selectedPartners.length === 0 || generating}
+                        className="group flex items-center gap-3 bg-white text-black pl-6 pr-8 py-4 rounded-full font-bold shadow-[0_0_40px_-5px_rgba(255,255,255,0.3)] hover:scale-105 transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
+                    >
+                        {generating ? <FaSpinner className="animate-spin" /> : (
+                            <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white">
+                                <span className="text-xs">{selectedPartners.length}</span>
+                            </div>
+                        )}
+                        <span>Generate Quotes</span>
+                        <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
+                    </button>
+                </div>
             </div>
 
-            {/* Generate Quote Button (Floating or Fixed) */}
-            <div className="fixed bottom-8 right-8 z-40">
-                <button
-                    onClick={handleGenerateQuotes}
-                    disabled={selectedPartners.length === 0 || generating}
-                    className="bg-emerald-500 text-black font-bold px-8 py-4 rounded-full hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl shadow-emerald-500/30 flex items-center gap-3 text-lg"
-                >
-                    {generating ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
-                    Generate Quote ({selectedPartners.length})
-                </button>
-            </div>
-
-            {/* Partner Details Modal */}
+            {/* Modal for Partner Details (Simplified) */}
             <AnimatePresence>
                 {viewingPartner && (
                     <motion.div
@@ -491,63 +754,42 @@ const RequirementDetails = () => {
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                             {viewingPartner.amenities && viewingPartner.amenities.map((am, i) => (
                                                 <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/5 p-4 rounded-xl hover:bg-white/10 transition-colors">
-                                                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
                                                     <span className="text-gray-300 font-medium">{am}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="text-2xl font-serif font-bold mb-6 text-white flex items-center gap-2">
-                                            <span className="w-8 h-1 bg-emerald-500 rounded-full"></span> Nearby Sightseeing
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {viewingPartner.sightSeeing && viewingPartner.sightSeeing.map((sight, i) => (
-                                                <div key={i} className="flex items-start gap-3">
-                                                    <FaMapMarkerAlt className="text-emerald-500 mt-1 flex-shrink-0" />
-                                                    <span className="text-gray-300">{sight}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-8">
-                                    <div className="bg-zinc-800/50 p-8 rounded-3xl border border-white/10 sticky top-8">
-                                        <p className="text-sm text-gray-500 uppercase tracking-wider mb-2 font-bold">Starting Price</p>
-                                        <div className="flex items-baseline gap-1 mb-8">
-                                            <span className="text-4xl font-bold text-white">₹{viewingPartner.startingPrice ? viewingPartner.startingPrice.toLocaleString() : 'N/A'}</span>
-                                            <span className="text-gray-500">/ night</span>
+                                <div className="space-y-6">
+                                    <div className="bg-white/5 border border-white/10 p-8 rounded-2xl">
+                                        <p className="text-gray-400 uppercase tracking-widest text-xs font-bold mb-2">Starting From</p>
+                                        <div className="flex items-baseline gap-1 mb-6">
+                                            <span className="text-3xl lg:text-4xl font-serif font-bold text-white">₹{viewingPartner.startingPrice?.toLocaleString()}</span>
+                                            <span className="text-gray-500">/ person</span>
                                         </div>
-
                                         <button
                                             onClick={() => {
                                                 togglePartner(viewingPartner.userId);
                                                 setViewingPartner(null);
                                             }}
-                                            className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:scale-105 active:scale-95 ${selectedPartners.includes(viewingPartner.userId)
-                                                ? 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20'
-                                                : 'bg-white text-black hover:bg-gray-200 shadow-white/10'
+                                            className={`w-full py-4 rounded-xl font-bold text-lg transition-transform hover:scale-105 ${selectedPartners.includes(viewingPartner.userId)
+                                                ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                                : 'bg-white text-black hover:bg-gray-200'
                                                 }`}
                                         >
                                             {selectedPartners.includes(viewingPartner.userId) ? 'Selected' : 'Select Partner'}
                                         </button>
-
-                                        <p className="text-xs text-center text-gray-500 mt-4">
-                                            *Prices may vary based on season and availability.
-                                        </p>
                                     </div>
 
-                                    <div className="bg-zinc-800/50 p-8 rounded-3xl border border-white/10">
-                                        <h4 className="font-bold mb-4 text-white text-lg">Specializations</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {viewingPartner.specializations && viewingPartner.specializations.map((spec, i) => (
-                                                <span key={i} className="text-sm bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 font-medium">
-                                                    {spec}
-                                                </span>
-                                            ))}
-                                        </div>
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-2xl">
+                                        <h4 className="text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                                            <FaCheckCircle /> Verified Partner
+                                        </h4>
+                                        <p className="text-sm text-gray-400">
+                                            This partner has been verified by VoyageGen guidelines and quality standards.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -555,7 +797,7 @@ const RequirementDetails = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div >
+        </div>
     );
 };
 

@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Import configs
-const { connectDB, corsOptions, generalLimiter, authLimiter } = require('./src/config');
+const { connectDB, corsOptions, generalLimiter, authLimiter, agentLimiter } = require('./src/config');
 
 // Import middleware
 const { errorHandler, notFound } = require('./src/middleware/error.middleware');
@@ -22,8 +22,11 @@ connectDB();
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 
-// Rate Limiting
-app.use('/api', generalLimiter);
+// Rate Limiting (exclude /api/agent which has its own limiter)
+app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/agent')) return next();
+    generalLimiter(req, res, next);
+});
 
 // Health Check
 app.get('/', (req, res) => {
@@ -39,6 +42,7 @@ app.use('/api/auth', authLimiter, require('./src/routes/authRoutes'));
 app.use('/api/requirements', require('./src/routes/requirementRoutes'));
 app.use('/api/partners', require('./src/routes/partnerRoutes'));
 app.use('/api/quotes', require('./src/routes/quoteRoutes'));
+app.use('/api/agent', agentLimiter, require('./src/routes/agentRoutes'));
 
 // Error Handling
 app.use(notFound);

@@ -28,7 +28,7 @@ const quoteSchema = new mongoose.Schema({
             total: Number,
         }],
         transport: [{
-            type: String, // e.g., Sedan
+            vehicleType: { type: String }, // e.g., Sedan - renamed from 'type' to avoid Mongoose conflict
             days: Number,
             unitPrice: Number,
             total: Number,
@@ -54,6 +54,15 @@ const quoteSchema = new mongoose.Schema({
     itineraryText: {
         type: String,
         default: '',
+    },
+    itineraryJson: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+    },
+    agentRunId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AgentRun',
+        default: null,
     },
 }, {
     timestamps: true,

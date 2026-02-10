@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { FaEye, FaSpinner, FaTrash } from 'react-icons/fa';
+import { FaEye, FaSpinner, FaTrash, FaMapMarkerAlt, FaCalendar, FaWallet, FaUser, FaPlane } from 'react-icons/fa';
 
 const AgentDashboard = () => {
     const { user } = useAuth();
@@ -16,7 +16,8 @@ const AgentDashboard = () => {
                     headers: { Authorization: `Bearer ${user.token}` },
                 };
                 const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/requirements`, config);
-                setRequirements(data);
+                // Handle paginated response format
+                setRequirements(data.data || data);
             } catch (error) {
                 console.error('Error fetching requirements:', error);
             } finally {
@@ -44,7 +45,7 @@ const AgentDashboard = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full text-emerald-400">
+            <div className="flex items-center justify-center h-[70vh] text-emerald-400">
                 <FaSpinner className="animate-spin text-4xl" />
             </div>
         );
@@ -52,75 +53,107 @@ const AgentDashboard = () => {
 
     return (
         <div>
-            <h2 className="text-3xl font-serif mb-8">New Requirements</h2>
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 animate-enter">
+                <div>
+                    <h2 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">Requirement Queue</h2>
+                    <p className="text-gray-400 text-lg font-light">Manage incoming travel requests and AI generations.</p>
+                </div>
+                <div className="bg-zinc-900/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/5 flex items-center gap-3 shadow-xl">
+                    <span className="text-gray-400 text-sm font-medium uppercase tracking-wider">Active Requests</span>
+                    <div className="w-px h-4 bg-white/10" />
+                    <span className="text-emerald-400 font-bold text-xl font-serif">{requirements.length}</span>
+                </div>
+            </div>
 
-            <div className="bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-white/5 border-b border-white/10 text-gray-400 text-sm uppercase tracking-wider">
-                                <th className="p-6 font-medium">Traveler</th>
-                                <th className="p-6 font-medium">Destination</th>
-                                <th className="p-6 font-medium">Trip Type</th>
-                                <th className="p-6 font-medium">Budget</th>
-                                <th className="p-6 font-medium">Status</th>
-                                <th className="p-6 font-medium">Date</th>
-                                <th className="p-6 font-medium text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {requirements.map((req) => (
-                                <tr key={req._id} className="hover:bg-white/5 transition-colors">
-                                    <td className="p-6 font-medium text-white">{req.contactInfo.name}</td>
-                                    <td className="p-6 text-gray-300">{req.destination}</td>
-                                    <td className="p-6">
-                                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                            {req.tripType}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 text-gray-300">₹{req.budget.toLocaleString()}</td>
-                                    <td className="p-6">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${req.status === 'NEW' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                                            req.status === 'QUOTES_READY' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                                                req.status === 'IN_PROGRESS' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                                                    'bg-gray-500/20 text-gray-400 border-gray-500/30'
+            {/* Grid Layout */}
+            {requirements.length === 0 ? (
+                <div className="glass-card rounded-xl p-16 text-center border-dashed border-2 border-zinc-800 flex flex-col items-center justify-center animate-enter">
+                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6 shadow-sm border border-zinc-800">
+                        <FaPlane className="text-3xl text-zinc-600" />
+                    </div>
+                    <h3 className="text-2xl font-serif font-bold text-white mb-2">Queue is Empty</h3>
+                    <p className="text-gray-500 max-w-md mx-auto">No travel requirements found. New requests from the main site will appear here.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {requirements.map((req, index) => (
+                        <div
+                            key={req._id}
+                            className="glass-card rounded-xl p-6 group hover:bg-zinc-900/60 relative overflow-hidden flex flex-col h-full animate-enter transition-all duration-300 border-zinc-800/50 hover:border-zinc-700"
+                            style={{ animationDelay: `${index * 100}ms`, opacity: 0 }}
+                        >
+                            {/* Card Header */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${req.status === 'NEW' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10' :
+                                            req.status === 'QUOTES_READY' ? 'bg-purple-500/10 text-purple-400 border-purple-500/10' :
+                                                'bg-zinc-800 text-zinc-400 border-zinc-700'
                                             }`}>
                                             {req.status.replace('_', ' ')}
                                         </span>
-                                    </td>
-                                    <td className="p-6 text-gray-400 text-sm">
-                                        {new Date(req.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="p-6 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Link
-                                                to={`/agent/requirement/${req._id}`}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-emerald-400 hover:text-white transition-all"
-                                            >
-                                                <FaEye /> Open
-                                            </Link>
-                                            <button
-                                                onClick={() => deleteRequirement(req._id)}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-400 transition-all"
-                                                title="Delete Requirement"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {requirements.length === 0 && (
-                                <tr>
-                                    <td colSpan="7" className="p-12 text-center text-gray-500">
-                                        No requirements found.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                        <span className="text-xs text-zinc-500 font-mono">#{req._id.slice(-4)}</span>
+                                    </div>
+                                    <h3 className="text-xl font-serif font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1" title={req.destination}>
+                                        {req.destination}
+                                    </h3>
+                                </div>
+                                <div className="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center text-zinc-500 border border-zinc-800 group-hover:border-zinc-700 transition-colors shrink-0">
+                                    <FaPlane />
+                                </div>
+                            </div>
+
+                            {/* Info Grid */}
+                            <div className="grid grid-cols-2 gap-4 mb-6 flex-1">
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
+                                        <FaUser /> Traveler
+                                    </div>
+                                    <p className="text-zinc-300 font-medium text-sm truncate" title={req.contactInfo.name}>{req.contactInfo.name}</p>
+                                </div>
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
+                                        <FaCalendar /> Date
+                                    </div>
+                                    <p className="text-zinc-300 font-medium text-sm truncate">
+                                        {req.startDate ? new Date(req.startDate).toLocaleDateString() : 'Flexible'}
+                                    </p>
+                                </div>
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
+                                        <FaWallet /> Budget
+                                    </div>
+                                    <p className="text-emerald-500/80 font-medium text-sm font-mono">₹{req.budget.toLocaleString()}</p>
+                                </div>
+                                <div className="bg-zinc-900/50 rounded-lg p-3 border border-zinc-800">
+                                    <div className="flex items-center gap-2 text-zinc-500 text-xs mb-1">
+                                        <FaMapMarkerAlt /> Type
+                                    </div>
+                                    <p className="text-zinc-300 font-medium text-sm">{req.tripType}</p>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-4 border-t border-zinc-800 mt-auto">
+                                <Link
+                                    to={`/agent/requirement/${req._id}`}
+                                    className="flex-1 bg-zinc-100 text-zinc-900 hover:bg-white py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+                                >
+                                    <FaEye /> View
+                                </Link>
+                                <button
+                                    onClick={() => deleteRequirement(req._id)}
+                                    className="px-4 py-3 bg-zinc-900 hover:bg-red-900/20 text-zinc-500 hover:text-red-400 border border-zinc-800 hover:border-red-500/20 rounded-lg transition-all"
+                                    title="Delete"
+                                >
+                                    <FaTrash />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
-            </div>
+            )}
         </div>
     );
 };

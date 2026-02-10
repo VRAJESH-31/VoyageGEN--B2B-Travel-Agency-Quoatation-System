@@ -12,15 +12,33 @@ const createRequirement = async (req, res) => {
     }
 };
 
-// @desc    Get all requirements (Agent/Admin)
-// @route   GET /api/requirements
+// @desc    Get all requirements (Agent/Admin) with pagination
+// @route   GET /api/requirements?page=1&limit=10
 // @access  Private (Agent/Admin)
 const getRequirements = async (req, res) => {
     try {
-        const requirements = await Requirement.find({}).sort({ createdAt: -1 });
-        res.json(requirements);
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+        const skip = (page - 1) * limit;
+
+        const total = await Requirement.countDocuments({});
+        const requirements = await Requirement.find({})
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            success: true,
+            data: requirements,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
