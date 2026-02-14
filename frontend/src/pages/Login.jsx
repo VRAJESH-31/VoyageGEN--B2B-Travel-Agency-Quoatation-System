@@ -20,7 +20,7 @@ const Login = () => {
             else if (user.role === 'PARTNER') navigate('/partner');
             else navigate('/plan-journey');
         } catch (err) {
-            setError(err);
+            setError(err.message || 'An error occurred during login');
         }
     };
 
