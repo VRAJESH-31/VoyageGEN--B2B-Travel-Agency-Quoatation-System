@@ -1,10 +1,13 @@
 const corsOptions = {
     origin: function (origin, callback) {
-        const allowedOrigins = [
-            process.env.FRONTEND_URL,
-            'http://localhost:5173',
-            'http://localhost:3000'
-        ].filter(Boolean);
+        const allowedOrigins = (process.env.FRONTEND_URL || '')
+            .split(',')
+            .map(url => url.trim())
+            .concat([
+                'http://localhost:5173',
+                'http://localhost:3000'
+            ])
+            .filter(Boolean);
 
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
